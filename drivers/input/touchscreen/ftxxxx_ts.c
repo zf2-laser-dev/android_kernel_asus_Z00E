@@ -177,6 +177,7 @@ void ftxxxx_ts_suspend(void);
 void ftxxxx_ts_resume(void);
 #endif
 struct ftxxxx_ts_data *ftxxxx_ts;
+static int virtual_keys_abs_y = 1248;
 static bool touch_down_up_status;
 
 #define TOUCH_MAX_X						720
@@ -328,7 +329,6 @@ int ftxxxx_i2c_Write(struct i2c_client *client, char *writebuf, int writelen)
 
 static ssize_t focalTP_virtual_keys_register(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-
 	char *virtual_keys = 	__stringify(EV_KEY) ":" __stringify(KEY_BACK) ":140:1328:160:80" "\n" \
 
 				__stringify(EV_KEY) ":" __stringify(KEY_HOME) ":360:1328:180:80" "\n" \
@@ -713,6 +713,8 @@ static void ftxxxx_report_value(struct ftxxxx_ts_data *data)
 	 
 	/*protocol B*/
 	for (i = 0; i < event->touch_point; i++) {
+		if((virtual_keys_abs_y && !ftxxxx_ts->keypad_mode_enable && event->au16_y[i] >= virtual_keys_abs_y))
+			continue;
 		if (event->au8_touch_event[i]== 0 || event->au8_touch_event[i] == 2) {
 			input_report_key(data->input_dev, BTN_TOUCH, 1);             /* touch down*/
 			input_report_abs(data->input_dev, ABS_MT_TRACKING_ID, event->au8_finger_id[i]); /*ID of touched point*/
@@ -1193,6 +1195,42 @@ void focal_glove_switch(bool plugin)
 	}
 	return;
 
+}
+
+void focal_keypad_switch(bool plugin)
+{
+	if (ftxxxx_ts == NULL) {
+		printk("[Focal][Touch] %s : ftxxxx_ts is null, skip \n", __func__);
+		return;
+	}
+
+	wake_lock(&ftxxxx_ts->wake_lock);
+
+	mutex_lock(&ftxxxx_ts->g_device_mutex);
+
+	if (ftxxxx_ts->init_success == 1) {
+		if (plugin) {
+			// Enable keypad
+			set_bit(KEY_BACK, ftxxxx_ts->input_dev->keybit);
+			set_bit(KEY_HOME, ftxxxx_ts->input_dev->keybit);
+			set_bit(KEY_APPSELECT, ftxxxx_ts->input_dev->keybit);
+
+			ftxxxx_ts->keypad_mode_enable = true;
+		} else {
+			// Disable keypad
+			clear_bit(KEY_BACK, ftxxxx_ts->input_dev->keybit);
+			clear_bit(KEY_HOME, ftxxxx_ts->input_dev->keybit);
+			clear_bit(KEY_APPSELECT, ftxxxx_ts->input_dev->keybit);
+
+			ftxxxx_ts->keypad_mode_enable = false;
+		}
+	}
+
+	input_sync(ftxxxx_ts->input_dev);
+
+	mutex_unlock(&ftxxxx_ts->g_device_mutex);
+
+	wake_unlock(&ftxxxx_ts->wake_lock);
 }
 
 static void focal_reset_ic_work(struct work_struct *work)
@@ -1867,6 +1905,7 @@ static int ftxxxx_ts_probe(struct i2c_client *client, const struct i2c_device_id
 	ftxxxx_ts->gesture_mode_eable = 0;
 	ftxxxx_ts->irq_wakeup_eable = 0;
 	ftxxxx_ts->gesture_mode_type = 0;
+	ftxxxx_ts->keypad_mode_enable = true;
 	ftxxxx_ts->pdata = pdata;
 	ftxxxx_ts->x_max = pdata->abs_x_max;
 	ftxxxx_ts->y_max = pdata->abs_y_max;
