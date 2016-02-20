@@ -353,8 +353,6 @@ static const unsigned int icl_tbl[] = {
 	2000,
 };
 
-static uint8_t led_type = 0; //ASUS BSP Austin_T : LED charger mode +++
-
 static int __smb358_read_reg(struct smb358_charger *chip, u8 reg, u8 *val)
 {
 	s32 ret;
@@ -604,7 +602,6 @@ extern int get_charger_type(void)
 	return ret;
 }
 
-extern void led_set_charger_mode(uint8_t led_type); //ASUS BSP Austin_T : LED charger mode +++
 extern void focal_usb_detection(bool plugin);		//ASUS BSP Jacob_kung : notify touch cable in +++
 /* write 06h[6:5]="00" or "11" */
 /*BSP david: add status_flag to decide whether report toggle status or not*/
@@ -1633,23 +1630,9 @@ bool charging_toggle;
 /*BSP david: can only used for printing, since the info may not up to date*/
 struct battery_info_reply batt_info;
 
-struct delayed_work update_charger_led_work;
-void update_charger_led_worker(struct work_struct *dat)
-{
-	static int old_led_type = -1;
-	int cur_led_type = led_type;
-	if (old_led_type != cur_led_type) {
-		BAT_DBG("%s: led type change, %d => %d\n", __func__, old_led_type, cur_led_type);
-		//ASUS BSP Austin_T : LED charger mode +++
-		led_set_charger_mode(cur_led_type);
-		//ASUS BSP Austin_T : LED charger mode ---
-		old_led_type = cur_led_type;
-	}
-}
 extern bool g_bat_full;
 /* BSP Clay: Back door */
 extern bool Prevent_Unknown;
-extern bool g_Charger_mode;
 int asus_battery_update_status(void)
 {
 	int status = POWER_SUPPLY_STATUS_UNKNOWN;
@@ -1674,22 +1657,6 @@ int asus_battery_update_status(void)
 		} else{
 			status = POWER_SUPPLY_STATUS_DISCHARGING;
 	 	}
-	}
-	if (g_Charger_mode){
-		switch (status) {
-		case POWER_SUPPLY_STATUS_FULL:
-			led_type = 2; 
-			schedule_delayed_work(&update_charger_led_work, 0);
-			break;
-		case POWER_SUPPLY_STATUS_CHARGING:
-			led_type = 1; 
-			schedule_delayed_work(&update_charger_led_work, 0);
-			break;
-		default:
-			led_type = 0; 
-			schedule_delayed_work(&update_charger_led_work, 0);
-			break;
-		}
 	}
 	return status;
 }
@@ -2803,7 +2770,6 @@ static int smb358_charger_probe(struct i2c_client *client,
 	chip->vadc_dev = qpnp_get_vadc(chip->dev, "chg");
 
 	INIT_DELAYED_WORK(&battery_poll_data_work, asus_polling_data);
-	INIT_DELAYED_WORK(&update_charger_led_work, update_charger_led_worker);
 
 	ret = smb358_routine_aicl_control();
 	if (ret < 0)
