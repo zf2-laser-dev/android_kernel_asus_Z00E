@@ -173,17 +173,13 @@ obj-$(CONFIG_SENSORS_SSC)	+= sensors/
 ifdef CONFIG_TEXURA_ARM64
 	ifdef CONFIG_TEXURA_USERDEBUG
 	obj-y				+= ntfs/userdebug/64/objects/
-	obj-y				+= exfat/userdebug/64/objects/
 	else
 	obj-y				+= ntfs/user/64/objects/
-	obj-y				+= exfat/user/64/objects/
 	endif
 else
 	ifdef CONFIG_TEXURA_USERDEBUG
 	obj-y				+= ntfs/userdebug/32/objects/
-	obj-y				+= exfat/userdebug/32/objects/
 	else
 	obj-y				+= ntfs/user/32/objects/
-	obj-y				+= exfat/user/32/objects/
 	endif
 endif
