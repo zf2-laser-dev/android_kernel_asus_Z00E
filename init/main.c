@@ -6,7 +6,7 @@
  *  GK 2/5/95  -  Changed to support mounting root fs via NFS
  *  Added initrd & change_root: Werner Almesberger & Hans Lermen, Feb '96
  *  Moan early if gcc is old, avoiding bogus kernels - Paul Gortmaker, May '96
- *  Simplified starting of init:  Michael A. Griffith <grif@acm.org> 
+ *  Simplified starting of init:  Michael A. Griffith <grif@acm.org>
  */
 
 #define DEBUG		/* Enable initcall_debug */
@@ -134,6 +134,392 @@ static char *static_command_line;
 
 static char *execute_command;
 static char *ramdisk_execute_command;
+
+//+++ ASUS_BSP : miniporting
+enum DEVICE_HWID g_ASUS_hwID=ZE500KL_UNKNOWN;
+char hwid_info[32]={0};
+
+EXPORT_SYMBOL(g_ASUS_hwID);
+
+ static int set_hardware_id(char *str)
+ {
+	strcpy(hwid_info,"HW ID : ");
+	// ZE500KL
+	if ( strcmp("ZE500KL_EVB", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_EVB;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_EVB\n");
+	}
+	else if ( strcmp("ZE500KL_SR1", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_SR1;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_SR1\n");
+	}
+	else if ( strcmp("ZE500KL_SR2", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_SR2;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_SR2\n");
+	}
+	else if ( strcmp("ZE500KL_ER1", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_ER1;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_ER1\n");
+	}
+	else if ( strcmp("ZE500KL_ER2", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_ER2;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_ER2\n");
+	}
+	else if ( strcmp("ZE500KL_PR", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_PR;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_PR\n");
+	}
+	else if ( strcmp("ZE500KL_PREMP", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_PREMP;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_PREMP\n");
+	}
+	else if ( strcmp("ZE500KL_MP", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_MP;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_MP\n");
+	}
+	// ZE500KG
+	else if ( strcmp("ZE500KG_EVB", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KG_EVB;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KG_EVB\n");
+	}
+	else if ( strcmp("ZE500KG_SR1", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KG_SR1;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KG_SR1\n");
+	}
+	else if ( strcmp("ZE500KG_SR2", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KG_SR2;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KG_SR2\n");
+	}
+	else if ( strcmp("ZE500KG_ER1", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KG_ER1;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KG_ER1\n");
+	}
+	else if ( strcmp("ZE500KG_ER2", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KG_ER2;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KG_ER2\n");
+	}
+	else if ( strcmp("ZE500KG_PR", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KG_PR;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KG_PR\n");
+	}
+	else if ( strcmp("ZE500KG_PREMP", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KG_PREMP;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KG_PREMP\n");
+	}
+	else if ( strcmp("ZE500KG_MP", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KG_MP;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KG_MP\n");
+	}
+	// ZE500KL_CMCC
+	else if ( strcmp("ZE500KL_CMCC_EVB", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_CMCC_EVB;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_CMCC_EVB\n");
+	}
+	else if ( strcmp("ZE500KL_CMCC_SR1", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_CMCC_SR1;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_CMCC_SR1\n");
+	}
+	else if ( strcmp("ZE500KL_CMCC_SR2", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_CMCC_SR2;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_CMCC_SR2\n");
+	}
+	else if ( strcmp("ZE500KL_CMCC_ER1", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_CMCC_ER1;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_CMCC_ER1\n");
+	}
+	else if ( strcmp("ZE500KL_CMCC_ER2", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_CMCC_ER2;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_CMCC_ER2\n");
+	}
+	else if ( strcmp("ZE500KL_CMCC_PR", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_CMCC_PR;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_CMCC_PR\n");
+	}
+	else if ( strcmp("ZE500KL_CMCC_PREMP", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_CMCC_PREMP;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_CMCC_PREMP\n");
+	}
+	else if ( strcmp("ZE500KL_CMCC_MP", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_CMCC_MP;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_CMCC_MP\n");
+	}
+	// ZE500KL_MSM8939
+	else if ( strcmp("ZE500KL_MSM8939_EVB", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_MSM8939_EVB;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_MSM8939_EVB\n");
+	}
+	else if ( strcmp("ZE500KL_MSM8939_SR1", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_MSM8939_SR1;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_MSM8939_SR1\n");
+	}
+	else if ( strcmp("ZE500KL_MSM8939_SR2", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_MSM8939_SR2;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_MSM8939_SR2\n");
+	}
+	else if ( strcmp("ZE500KL_MSM8939_ER1", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_MSM8939_ER1;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_MSM8939_ER1\n");
+	}
+	else if ( strcmp("ZE500KL_MSM8939_ER2", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_MSM8939_ER2;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_MSM8939_ER2\n");
+	}
+	else if ( strcmp("ZE500KL_MSM8939_PR", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_MSM8939_PR;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_MSM8939_PR\n");
+	}
+	else if ( strcmp("ZE500KL_MSM8939_MP", str) == 0 )
+	{
+		g_ASUS_hwID = ZE500KL_MSM8939_MP;
+		strcat(hwid_info,str);
+		printk("Kernel HW ID = ZE500KL_MSM8939_MP\n");
+	}
+	else
+	{
+		g_ASUS_hwID = ZE500KL_SR1;
+		strcat(hwid_info,"Unknown");
+		printk("Kernel HW ID = UNKNOWN HW_ID (FORCE to ZE500KL_SR1)\n");
+	}
+
+	printk("g_Asus_hwID = %d\n", g_ASUS_hwID);
+	return 0;
+}
+ __setup("HW_ID=", set_hardware_id);
+
+//--- ASUS_BSP : miniporting
+
+//+++ ASUS_BSP : add for parse soc id
+int g_soc_id = 0;
+
+static int set_soc_id(char *str)
+{
+    if(strcmp("0", str) == 0)
+        g_soc_id = 0;
+    else if(strcmp("1", str) == 0)
+        g_soc_id = 1;
+    else if(strcmp("2", str) == 0)
+        g_soc_id = 2;
+    else if(strcmp("3", str) == 0)
+        g_soc_id = 3;
+
+    printk("g_soc_id = %d\n", g_soc_id);
+    return 0;
+}
+__setup("androidboot.id.soc=", set_soc_id);
+EXPORT_SYMBOL(g_soc_id);
+//--- ASUS_BSP : add for parse soc id
+
+//+++ ASUS_BSP : Add for FM ID
+int g_ASUS_fmID = 1;
+
+static int set_fm_id(char *str)
+{
+    if ( strcmp("1", str) == 0 )
+    {
+        g_ASUS_fmID = 1;
+    }
+    else
+    {
+        g_ASUS_fmID = 0;
+    }
+    printk("Kernel FM ID = %d\n", g_ASUS_fmID);
+    return 0;
+}
+__setup("FM_ID=", set_fm_id);
+EXPORT_SYMBOL(g_ASUS_fmID);
+//--- ASUS_BSP : Add for FM ID
+
+//+++ ASUS_BSP : Add for LASER ID
+int g_ASUS_laserID = 1;
+
+static int set_laser_id(char *str)
+{
+    if ( strcmp("1", str) == 0 )
+    {
+        g_ASUS_laserID = 1;
+    }
+    else
+    {
+        g_ASUS_laserID = 0;
+    }
+    printk("Kernel LASER ID = %d\n", g_ASUS_laserID);
+    return 0;
+}
+__setup("LASER_ID=", set_laser_id);
+EXPORT_SYMBOL(g_ASUS_laserID);
+//--- ASUS_BSP : Add for LASER ID
+
+//+++ ASUS_BSP : miniporting : Add for audio dbg mode
+int g_user_dbg_mode = 1;
+EXPORT_SYMBOL(g_user_dbg_mode);
+
+static int set_user_dbg_mode(char *str)
+{
+    if ( strcmp("y", str) == 0 )
+    {
+        g_user_dbg_mode = 1;
+    }
+    else
+    {
+        g_user_dbg_mode = 0;
+    }
+    g_user_dbg_mode = 1;
+    printk("Kernel dbg mode = %d\n", g_user_dbg_mode);
+    return 0;
+}
+__setup("dbg=", set_user_dbg_mode);
+//--- ASUS_BSP : miniporting : Add for audio dbg mode
+
+//ASUS_BSP Austin_T : add for kernel charger mode. +++
+bool g_Charger_mode = false;
+
+static int set_charger_mode(char *str)
+{
+    if ( strcmp("charger", str) == 0 )
+        g_Charger_mode = true;
+    else
+        g_Charger_mode = false;
+
+    printk("g_Charger_mode = %d\n", g_Charger_mode);
+    return 0;
+}
+__setup("androidboot.mode=", set_charger_mode);
+EXPORT_SYMBOL(g_Charger_mode);
+//ASUS_BSP Austin_T : add for kernel charger mode. ---
+
+//+++ ASUS_BSP: Louis, parsing lcd id from aboot
+int g_asus_lcdID = -1;
+EXPORT_SYMBOL(g_asus_lcdID);
+
+static int set_lcd_id(char *str)
+{
+    if (strcmp("AUO", str) == 0 ) {
+        g_asus_lcdID = ZE500KL_LCD_AUO;
+		printk("LCD ID = AUO\n");
+	} else if (strcmp("TM", str) == 0 ){
+        g_asus_lcdID = ZE500KL_LCD_TIANMA;
+		printk("LCD ID = TM\n");
+	} else if (strcmp("BOE", str) == 0 ){
+        g_asus_lcdID = ZE500KL_LCD_BOE;
+		printk("LCD ID = BOE\n");
+	} else if (strcmp("HSD", str) == 0 ){
+        g_asus_lcdID = A500_HSD;
+		printk("LCD ID = HSD\n");
+	}
+
+	printk("g_asus_lcdID = %d\n" , g_asus_lcdID);
+    return 0;
+}
+__setup("PANEL=", set_lcd_id);
+//--- ASUS_BSP: Louis
+
+//+++ ASUS_BSP: Louis, parsing lcd unique id from aboot
+char lcd_unique_id[64] = {0};
+EXPORT_SYMBOL(lcd_unique_id);
+
+static int get_lcd_uniqueId(char *str)
+{
+	strncpy(lcd_unique_id, str, sizeof(lcd_unique_id));
+	printk("lcd_unique_id = %s\n ", lcd_unique_id);
+
+    return 0;
+}
+__setup("LCD_UNIQUE_ID=", get_lcd_uniqueId);
+//--- ASUS_BSP: Louis
+
+//+++ ASUS_BSP: Deeo add for MCP_ID
+enum DEVICE_MCPID g_mcp_id = MCP_ID_UNKNOW;
+EXPORT_SYMBOL(g_mcp_id);
+
+static int get_mcp_id(char *str)
+{
+	if (strcmp("SAMSUNG_16G_8G", str) == 0 ) {
+		g_mcp_id = SAMSUNG_16G_8G;
+	} else if (strcmp("HYNIX_16G_8G", str) == 0 ) {
+		g_mcp_id = HYNIX_16G_8G;
+	} else if (strcmp("HYNIX_32G_16G", str) == 0 ) {
+		g_mcp_id = HYNIX_32G_16G;
+	} else if (strcmp("SAMSUNG_16G_16G", str) == 0 ) {
+		g_mcp_id = SAMSUNG_16G_16G;
+	} else if (strcmp("SAMSUNG_8G_16G", str) == 0 ) {
+		g_mcp_id = SAMSUNG_8G_16G;
+	} else if (strcmp("SAMSUNG_8G_8G", str) == 0 ) {
+		g_mcp_id = SAMSUNG_8G_8G;
+	} else if (strcmp("HYNIX_16G_16G", str) == 0 ) {
+		g_mcp_id = HYNIX_16G_16G;
+	} else if (strcmp("HYNIX_8G_16G", str) == 0 ) {
+		g_mcp_id = HYNIX_8G_16G;
+	} else if (strcmp("HYNIX_8G_8G", str) == 0 ) {
+		g_mcp_id = HYNIX_8G_8G;
+	} else {
+		g_mcp_id = MCP_ID_UNKNOW;
+	}
+
+	printk("MCP_ID = %d\n ", g_mcp_id);
+    return 0;
+}
+__setup("MCP_ID=", get_mcp_id);
+//--- ASUS_BSP: Deeo add for MCP_ID
 
 /*
  * If set, this is an indication to the drivers that reset the underlying
@@ -667,14 +1053,22 @@ static int __init_or_module do_one_initcall_debug(initcall_t fn)
 	unsigned long long duration;
 	int ret;
 
-	pr_debug("calling  %pF @ %i\n", fn, task_pid_nr(current));
+	if (initcall_debug)
+		pr_debug("calling  %pF @ %i\n", fn, task_pid_nr(current));
 	calltime = ktime_get();
 	ret = fn();
 	rettime = ktime_get();
 	delta = ktime_sub(rettime, calltime);
 	duration = (unsigned long long) ktime_to_ns(delta) >> 10;
-	pr_debug("initcall %pF returned %d after %lld usecs\n",
-		 fn, ret, duration);
+	if (initcall_debug)
+		pr_debug("initcall %pF returned %d after %lld usecs\n",
+			 fn, ret, duration);
+
+	if (initcall_debug == 0) {
+		if (duration > 100000)
+			printk(KERN_WARNING "[debuginit] initcall %pF returned %d after %lld usecs\n", fn,
+				ret, duration);
+	}
 
 	return ret;
 }
@@ -684,10 +1078,7 @@ int __init_or_module do_one_initcall(initcall_t fn)
 	int count = preempt_count();
 	int ret;
 
-	if (initcall_debug)
-		ret = do_one_initcall_debug(fn);
-	else
-		ret = fn();
+	ret = do_one_initcall_debug(fn);
 
 	msgbuf[0] = 0;
 

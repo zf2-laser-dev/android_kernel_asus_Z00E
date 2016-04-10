@@ -3337,7 +3337,7 @@ static int kswapd(void *p)
  */
 void wakeup_kswapd(struct zone *zone, int order, enum zone_type classzone_idx)
 {
-	pg_data_t *pgdat;
+ 	pg_data_t *pgdat;
 
 	if (!populated_zone(zone))
 		return;

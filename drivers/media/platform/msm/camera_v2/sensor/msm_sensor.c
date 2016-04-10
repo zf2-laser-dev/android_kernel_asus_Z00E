@@ -17,9 +17,17 @@
 #include "msm_camera_i2c_mux.h"
 #include <linux/regulator/rpm-smd-regulator.h>
 #include <linux/regulator/consumer.h>
+#include <linux/workqueue.h>
 
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
+
+extern  void actuator_close(void);
+extern  int actuator_open(void);
+int isPowerup=0;
+
+struct work_struct msm_sensor_power_down_wq;
+static struct workqueue_struct *msm_sensor_workqueue;
 
 static struct v4l2_file_operations msm_sensor_v4l2_subdev_fops;
 static void msm_sensor_adjust_mclk(struct msm_camera_power_ctrl_t *ctrl)
@@ -415,13 +423,18 @@ int msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 	struct msm_camera_power_ctrl_t *power_info;
 	enum msm_camera_device_type_t sensor_device_type;
 	struct msm_camera_i2c_client *sensor_i2c_client;
+	int rc = 0;
 
+	printk("%s : E\n", __func__);
 	if (!s_ctrl) {
 		pr_err("%s:%d failed: s_ctrl %p\n",
 			__func__, __LINE__, s_ctrl);
 		return -EINVAL;
 	}
 
+	if(isPowerup&&strcmp(s_ctrl->sensordata->actuator_name, "dw9714") == 0){
+		queue_work(msm_sensor_workqueue, &msm_sensor_power_down_wq);
+	}
 	power_info = &s_ctrl->sensordata->power_info;
 	sensor_device_type = s_ctrl->sensor_device_type;
 	sensor_i2c_client = s_ctrl->sensor_i2c_client;
@@ -431,8 +444,12 @@ int msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 			__func__, __LINE__, power_info, sensor_i2c_client);
 		return -EINVAL;
 	}
-	return msm_camera_power_down(power_info, sensor_device_type,
+	isPowerup=0;
+	rc = msm_camera_power_down(power_info, sensor_device_type,
 		sensor_i2c_client);
+
+	printk("%s : rc=(%d) X\n", __func__, rc);
+	return rc;
 }
 
 int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
@@ -444,6 +461,7 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 	const char *sensor_name;
 	uint32_t retry = 0;
 
+	printk("%s : E\n", __func__);
 	if (!s_ctrl) {
 		pr_err("%s:%d failed: %p\n",
 			__func__, __LINE__, s_ctrl);
@@ -462,15 +480,15 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 			sensor_i2c_client, slave_info, sensor_name);
 		return -EINVAL;
 	}
-
 	if (s_ctrl->set_mclk_23880000)
 		msm_sensor_adjust_mclk(power_info);
 
 	for (retry = 0; retry < 3; retry++) {
 		rc = msm_camera_power_up(power_info, s_ctrl->sensor_device_type,
 			sensor_i2c_client);
-		if (rc < 0)
+		if (rc < 0) {
 			return rc;
+		}
 		rc = msm_sensor_check_id(s_ctrl);
 		if (rc < 0) {
 			msm_camera_power_down(power_info,
@@ -478,10 +496,18 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 			msleep(20);
 			continue;
 		} else {
+			if(!isPowerup&&strcmp(s_ctrl->sensordata->actuator_name, "dw9714") == 0){
+				rc = actuator_open();
+				usleep(12000);
+			}
 			break;
 		}
 	}
 
+	if(rc==0){
+		isPowerup=1;
+	}
+	printk("%s : rc=(%d) X\n", __func__, rc);
 	return rc;
 }
 
@@ -761,12 +787,16 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 			pr_err("%s:%d: i2c_read failed\n", __func__, __LINE__);
 			break;
 		}
+		pr_err("Randy reading data=0x%X, rc=%d", local_data, rc);
+		((struct msm_camera_i2c_read_config*)compat_ptr(cdata->cfg.setting))->data=local_data;
+		/*
 		if (copy_to_user(&read_config.data,
 			(void *)&local_data, sizeof(uint16_t))) {
 			pr_err("%s:%d copy failed\n", __func__, __LINE__);
 			rc = -EFAULT;
 			break;
 		}
+		*/
 		break;
 	}
 	case CFG_WRITE_I2C_SEQ_ARRAY: {
@@ -919,7 +949,10 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		}
 		break;
 	}
-
+	case CFG_SET_STOP_STREAM:
+			printk("%s : CFG_SET_STOP_STREAM\n", __func__);
+			usleep(49000);
+		break;
 	default:
 		rc = -EFAULT;
 		break;
@@ -1302,6 +1335,10 @@ int msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 		}
 		break;
 	}
+	case CFG_SET_STOP_STREAM:
+			printk("%s : CFG_SET_STOP_STREAM\n", __func__);
+			usleep(49000);
+		break;
 	default:
 		rc = -EFAULT;
 		break;
@@ -1698,4 +1735,19 @@ int32_t msm_sensor_init_default_params(struct msm_sensor_ctrl_t *s_ctrl)
 FREE_CCI_CLIENT:
 	kfree(cci_client);
 	return rc;
+}
+
+static void msm_sensor_power_down_work(struct work_struct *work)
+{
+	actuator_close();
+	return;
+}
+
+void msm_sensor_create_workqueue(void){
+    INIT_WORK(&msm_sensor_power_down_wq, msm_sensor_power_down_work);
+    msm_sensor_workqueue = create_singlethread_workqueue("msm_sensor_wq");
+}
+
+void  msm_sensor_destroy_workqueue(void){
+    destroy_workqueue(msm_sensor_workqueue);
 }

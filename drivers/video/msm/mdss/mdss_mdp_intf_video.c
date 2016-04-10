@@ -33,6 +33,10 @@
 #define MDP_INTR_MASK_INTF_VSYNC(intf_num) \
 	(1 << (2 * (intf_num - MDSS_MDP_INTF0) + MDSS_MDP_IRQ_INTF_VSYNC))
 
+//ASUS_BSP: Louis ++
+extern int MdpBoostUp;
+//ASUS_BSP: Louis --
+
 /* intf timing settings */
 struct intf_timing_params {
 	u32 width;
@@ -191,12 +195,9 @@ static void mdss_mdp_video_intf_recovery(void *data, int event)
 	if (delay > POLL_TIME_USEC_FOR_LN_CNT)
 		delay = POLL_TIME_USEC_FOR_LN_CNT;
 
-	mutex_lock(&ctl->offlock);
 	while (1) {
-		if (!ctl || ctl->mfd->shutdown_pending || !ctx ||
-				!ctx->timegen_en) {
-			pr_warn("Target is in suspend or shutdown pending\n");
-			mutex_unlock(&ctl->offlock);
+		if (!ctl || !ctx || !ctx->timegen_en) {
+			pr_warn("Target is in suspend state\n");
 			return;
 		}
 
@@ -206,7 +207,6 @@ static void mdss_mdp_video_intf_recovery(void *data, int event)
 			(active_lns_cnt + min_ln_cnt))) {
 			pr_debug("%s, Needed lines left line_cnt=%d\n",
 						__func__, line_cnt);
-			mutex_unlock(&ctl->offlock);
 			return;
 		} else {
 			pr_warn("line count is less. line_cnt = %d\n",
@@ -416,7 +416,7 @@ static int mdss_mdp_video_intfs_stop(struct mdss_mdp_ctl *ctl,
 	struct mdss_mdp_video_ctx *ctx;
 	struct mdss_mdp_vsync_handler *tmp, *handle;
 	struct mdss_mdp_ctl *sctl;
-	int rc = 0;
+	int rc;
 	u32 frame_rate = 0;
 	int ret = 0;
 
@@ -445,13 +445,12 @@ static int mdss_mdp_video_intfs_stop(struct mdss_mdp_ctl *ctl,
 		return -EINVAL;
 	}
 
-	mutex_lock(&ctl->offlock);
 	if (ctx->timegen_en) {
 		rc = mdss_mdp_ctl_intf_event(ctl, MDSS_EVENT_BLANK, NULL);
 		if (rc == -EBUSY) {
 			pr_debug("intf #%d busy don't turn off\n",
 				 ctl->intf_num);
-			goto end;
+			return rc;
 		}
 		WARN(rc, "intf %d blank error (%d)\n", ctl->intf_num, rc);
 
@@ -489,9 +488,8 @@ static int mdss_mdp_video_intfs_stop(struct mdss_mdp_ctl *ctl,
 		(inum + MDSS_MDP_INTF0), NULL, NULL);
 
 	ctx->ref_cnt--;
-end:
-	mutex_unlock(&ctl->offlock);
-	return rc;
+
+	return 0;
 }
 
 
@@ -652,6 +650,11 @@ static void mdss_mdp_video_underrun_intr_done(void *arg)
 
 	if (ctl->opmode & MDSS_MDP_CTL_OP_PACK_3D_ENABLE)
 		schedule_work(&ctl->recover_work);
+
+    //ASUS_BSP: Louis +++, "boostup mdp in 10 frames update"
+    MdpBoostUp = 10;
+    mdss_set_mdp_max_clk(1);
+    //ASUS_BSP: Louis ---
 }
 
 static int mdss_mdp_video_vfp_fps_update(struct mdss_mdp_video_ctx *ctx,
@@ -1085,7 +1088,7 @@ static void mdss_mdp_fetch_start_config(struct mdss_mdp_video_ctx *ctx,
 
 	if (!mdss_mdp_fetch_programable(ctl)) {
 		pr_debug("programmable fetch is not needed/supported\n");
-		ctl->prg_fet = 0;
+		ctl->prg_fet = false;
 		return;
 	}
 
@@ -1095,33 +1098,13 @@ static void mdss_mdp_fetch_start_config(struct mdss_mdp_video_ctx *ctx,
 	 */
 	v_total = mdss_panel_get_vtotal(pinfo);
 	h_total = mdss_panel_get_htotal(pinfo, true);
-	ctl->prg_fet = pinfo->lcdc.v_front_porch;
-	if (ctl->prg_fet > MDSS_MDP_MAX_FETCH)
-		ctl->prg_fet = MDSS_MDP_MAX_FETCH;
-	fetch_start = (v_total - ctl->prg_fet) * h_total + 1;
+	fetch_start = (v_total - mdss_mdp_max_fetch_lines(pinfo)) * h_total + 1;
 	fetch_enable = BIT(31);
+	ctl->prg_fet = true;
 
 	pr_debug("ctl:%d, fetch start=%d\n", ctl->num, fetch_start);
 	mdp_video_write(ctx, MDSS_MDP_REG_INTF_PROG_FETCH_START, fetch_start);
 	mdp_video_write(ctx, MDSS_MDP_REG_INTF_CONFIG, fetch_enable);
-}
-
-static void mdss_mdp_handoff_programmable_fetch(struct mdss_mdp_ctl *ctl,
-	struct mdss_mdp_video_ctx *ctx)
-{
-	u32 fetch_start_handoff, v_total_handoff, h_total_handoff;
-	ctl->prg_fet = 0;
-	if (mdp_video_read(ctx, MDSS_MDP_REG_INTF_CONFIG) & BIT(31)) {
-		fetch_start_handoff = mdp_video_read(ctx,
-			MDSS_MDP_REG_INTF_PROG_FETCH_START);
-		h_total_handoff = mdp_video_read(ctx,
-			MDSS_MDP_REG_INTF_HSYNC_CTL) >> 16;
-		v_total_handoff = mdp_video_read(ctx,
-			MDSS_MDP_REG_INTF_VSYNC_PERIOD_F0)/h_total_handoff;
-		ctl->prg_fet = v_total_handoff -
-			((fetch_start_handoff - 1)/h_total_handoff);
-		pr_debug("programmable fetch lines %d\n", ctl->prg_fet);
-	}
 }
 
 static int mdss_mdp_video_intfs_setup(struct mdss_mdp_ctl *ctl,
@@ -1215,8 +1198,6 @@ static int mdss_mdp_video_intfs_setup(struct mdss_mdp_ctl *ctl,
 			return -EINVAL;
 		}
 		mdss_mdp_fetch_start_config(ctx, ctl);
-	} else {
-		mdss_mdp_handoff_programmable_fetch(ctl, ctx);
 	}
 
 	mdp_video_write(ctx, MDSS_MDP_REG_INTF_PANEL_FORMAT, ctl->dst_format);

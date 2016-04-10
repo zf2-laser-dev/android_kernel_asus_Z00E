@@ -21,6 +21,21 @@
 #include <linux/usb/composite.h>
 #include <asm/unaligned.h>
 
+static bool detectMACByConfig = 0;
+static bool hostTypeChanged = 0;
+
+extern int getMACConnect(void){
+	return detectMACByConfig;
+}
+
+extern int getHostTypeChanged(void){
+	return hostTypeChanged;
+}
+
+extern void resetHostTypeChanged(void){
+	hostTypeChanged = 0;
+}
+
 /*
  * The code in this file is utility code, used to build a gadget driver
  * from one or more "function" drivers, one or more "configuration"
@@ -368,7 +383,9 @@ static int usb_func_wakeup_int(struct usb_function *func,
 {
 	int ret;
 	int interface_id;
+	unsigned long flags;
 	struct usb_gadget *gadget;
+	struct usb_composite_dev *cdev;
 
 	pr_debug("%s - %s function wakeup, use pending: %u\n",
 		__func__, func->name ? func->name : "", use_pending_flag);
@@ -387,8 +404,12 @@ static int usb_func_wakeup_int(struct usb_function *func,
 		return -ENOTSUPP;
 	}
 
+	cdev = get_gadget_data(gadget);
+	spin_lock_irqsave(&cdev->lock, flags);
+
 	if (use_pending_flag && !func->func_wakeup_pending) {
 		pr_debug("Pending flag is cleared - Function wakeup is cancelled.\n");
+		spin_unlock_irqrestore(&cdev->lock, flags);
 		return 0;
 	}
 
@@ -398,6 +419,7 @@ static int usb_func_wakeup_int(struct usb_function *func,
 			"Function %s - Unknown interface id. Canceling USB request. ret=%d\n",
 			func->name ? func->name : "", ret);
 
+		spin_unlock_irqrestore(&cdev->lock, flags);
 		return ret;
 	}
 
@@ -411,18 +433,18 @@ static int usb_func_wakeup_int(struct usb_function *func,
 			func->func_wakeup_pending = true;
 	}
 
+	spin_unlock_irqrestore(&cdev->lock, flags);
+
 	return ret;
 }
 
 int usb_func_wakeup(struct usb_function *func)
 {
 	int ret;
-	unsigned long flags;
 
 	pr_debug("%s function wakeup\n",
 		func->name ? func->name : "");
 
-	spin_lock_irqsave(&func->config->cdev->lock, flags);
 	ret = usb_func_wakeup_int(func, false);
 	if (ret == -EAGAIN) {
 		DBG(func->config->cdev,
@@ -435,7 +457,6 @@ int usb_func_wakeup(struct usb_function *func)
 			func->name ? func->name : "", ret);
 	}
 
-	spin_unlock_irqrestore(&func->config->cdev->lock, flags);
 	return ret;
 }
 
@@ -473,7 +494,7 @@ static int config_buf(struct usb_configuration *config,
 	c->bLength = USB_DT_CONFIG_SIZE;
 	c->bDescriptorType = type;
 	/* wTotalLength is written later */
-	c->bNumInterfaces = config->next_interface_id;
+	c->bNumInterfaces = config->next_interface_id - detectMACByConfig;
 	c->bConfigurationValue = config->bConfigurationValue;
 	c->iConfiguration = config->iConfiguration;
 	c->bmAttributes = USB_CONFIG_ATT_ONE | config->bmAttributes;
@@ -506,6 +527,12 @@ static int config_buf(struct usb_configuration *config,
 
 		if (!descriptors)
 			continue;
+
+		if (detectMACByConfig && !strcmp(f->name,"Mass Storage Function")){
+			printk("[USB] ingore mass storage\n");
+			continue;
+		}
+
 		status = usb_descriptor_fillbuf(next, len,
 			(const struct usb_descriptor_header **) descriptors);
 		if (status < 0)
@@ -751,6 +778,8 @@ static int set_config(struct usb_composite_dev *cdev,
 	INFO(cdev, "%s config #%d: %s\n",
 	     usb_speed_string(gadget->speed),
 	     number, c ? c->label : "unconfigured");
+
+	printk("[USB] speed:%d\n",gadget->speed);
 
 	if (!c)
 		goto done;
@@ -1383,6 +1412,12 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		switch (w_value >> 8) {
 
 		case USB_DT_DEVICE:
+			if(w_length==0x40){
+				if(detectMACByConfig==1){
+					hostTypeChanged=1;
+				}
+				detectMACByConfig=0;
+			}
 			cdev->desc.bNumConfigurations =
 				count_configs(cdev, USB_DT_DEVICE);
 			cdev->desc.bMaxPacketSize0 =
@@ -1416,6 +1451,12 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 				break;
 			/* FALLTHROUGH */
 		case USB_DT_CONFIG:
+			if(w_length==0x4){
+				if(detectMACByConfig==0){
+					hostTypeChanged=1;
+				}
+				detectMACByConfig=1;
+			}
 			value = config_desc(cdev, w_value);
 			if (value >= 0)
 				value = min(w_length, (u16) value);
@@ -1898,7 +1939,6 @@ composite_resume(struct usb_gadget *gadget)
 	struct usb_function		*f;
 	u8				maxpower;
 	int ret;
-	unsigned long			flags;
 
 	/* REVISIT:  should we have config level
 	 * suspend/resume callbacks?
@@ -1907,7 +1947,6 @@ composite_resume(struct usb_gadget *gadget)
 	if (cdev->driver->resume)
 		cdev->driver->resume(cdev);
 
-	spin_lock_irqsave(&cdev->lock, flags);
 	if (cdev->config) {
 		list_for_each_entry(f, &cdev->config->functions, list) {
 			ret = usb_func_wakeup_int(f, true);
@@ -1935,7 +1974,6 @@ composite_resume(struct usb_gadget *gadget)
 			maxpower : CONFIG_USB_GADGET_VBUS_DRAW);
 	}
 
-	spin_unlock_irqrestore(&cdev->lock, flags);
 	cdev->suspended = 0;
 }
 

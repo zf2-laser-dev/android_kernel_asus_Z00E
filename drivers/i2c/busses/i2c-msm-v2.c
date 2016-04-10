@@ -1103,7 +1103,10 @@ struct i2c_msm_clk_div_fld {
  * divider values as per HW Designers
  */
 static struct i2c_msm_clk_div_fld i2c_msm_clk_div_map[] = {
-	{KHz(100), 124, 62},
+/* ASUS BSP Peter_Lu for I2C repeat START time out of Spec */
+/*	{KHz(100), 124, 62},*/
+	{KHz(100), 96, 90},
+/* ASUS --- */
 	{KHz(400),  28, 14},
 	{KHz(1000),  8,  5},
 };
@@ -1133,6 +1136,10 @@ static int i2c_msm_set_mstr_clk_ctl(struct i2c_msm_ctrl *ctrl)
 	}
 	ctrl->mstr_clk_ctl = (reg_val & (~0xff07ff)) | ((ht_div & 0xff) << 16)
 				|(fs_div & 0xff);
+
+/* ASUS BSP Peter_Lu for I2C repeat START time out of Spec */
+	dev_info(ctrl->dev, "clk_freq_out : %d Hz, ht_div : %d, fs_div : %d\n", ctrl->rsrcs.clk_freq_out, ht_div, fs_div);
+/* ASUS --- */
 
 	if (!match)
 		dev_err(ctrl->dev, "error clock frequency %dKHz is not supported\n"
