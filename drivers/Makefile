@@ -168,18 +168,3 @@ obj-$(CONFIG_ESOC)		+= esoc/
 obj-$(CONFIG_BIF)		+= bif/
 obj-$(CONFIG_SENSORS)		+= sensors/
 obj-$(CONFIG_SENSORS_SSC)	+= sensors/
-
-#Texura
-ifdef CONFIG_TEXURA_ARM64
-	ifdef CONFIG_TEXURA_USERDEBUG
-	obj-y				+= ntfs/userdebug/64/objects/
-	else
-	obj-y				+= ntfs/user/64/objects/
-	endif
-else
-	ifdef CONFIG_TEXURA_USERDEBUG
-	obj-y				+= ntfs/userdebug/32/objects/
-	else
-	obj-y				+= ntfs/user/32/objects/
-	endif
-endif
