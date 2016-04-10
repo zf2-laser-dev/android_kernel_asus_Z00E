@@ -74,7 +74,7 @@
 #include <linux/binfmts.h>
 #include <linux/context_tracking.h>
 #include <linux/cpufreq.h>
-
+#include <linux/sched.h>
 #include <asm/switch_to.h>
 #include <asm/tlb.h>
 #include <asm/irq_regs.h>
@@ -86,6 +86,10 @@
 #include "sched.h"
 #include "../workqueue_internal.h"
 #include "../smpboot.h"
+
+#include <linux/asus_global.h>
+extern struct _asus_global asus_global;
+extern struct completion fake_completion;
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
@@ -4013,10 +4017,13 @@ calc_load_n(unsigned long load, unsigned long exp,
  * Once we've updated the global active value, we need to apply the exponential
  * weights adjusted to the number of cycles missed.
  */
+#define LOAD_INT(x) ((x) >> FSHIFT)
+#define LOAD_FRAC(x) LOAD_INT(((x) & (FIXED_1-1)) * 100)
+
 static void calc_global_nohz(void)
 {
 	long delta, active, n;
-
+	unsigned long avnrun[3];
 	if (!time_before(jiffies, calc_load_update + 10)) {
 		/*
 		 * Catch-up, fold however many we are behind still
@@ -4033,6 +4040,8 @@ static void calc_global_nohz(void)
 
 		calc_load_update += n * LOAD_FREQ;
 	}
+    get_avenrun(avnrun, FIXED_1/200, 0);
+	printk("loadavg %lu.%02lu  %ld/%d \n", LOAD_INT(avnrun[0]), LOAD_FRAC(avnrun[0]), nr_running(), nr_threads);
 
 	/*
 	 * Flip the idle index...
@@ -4058,7 +4067,6 @@ static inline void calc_global_nohz(void) { }
 void calc_global_load(unsigned long ticks)
 {
 	long active, delta;
-
 	if (time_before(jiffies, calc_load_update + 10))
 		return;
 
@@ -4677,6 +4685,30 @@ need_resched:
 		rq->curr = next;
 		++*switch_count;
 
+		//[CR] Save CPU prev/next task pointers into asus global
+		switch (cpu) {
+			case 0:
+				asus_global.pprev_cpu0 = prev;
+				asus_global.pnext_cpu0 = next;
+	 			break;
+			case 1:
+				asus_global.pprev_cpu1 = prev;
+				asus_global.pnext_cpu1 = next;
+	 			break;
+			case 2:
+				asus_global.pprev_cpu2 = prev;
+				asus_global.pnext_cpu2 = next;
+	 			break;
+			case 3:
+				asus_global.pprev_cpu3 = prev;
+				asus_global.pnext_cpu3 = next;
+	 			break;
+			case 4:
+				asus_global.pprev_cpu0 = prev;
+				asus_global.pnext_cpu0 = next;
+	 			break;
+		}
+
 #ifdef CONFIG_ARCH_WANTS_CTXSW_LOGGING
 		dlog("%s: enter context_switch at %llu\n",
 						__func__, sched_clock());
@@ -4976,6 +5008,7 @@ do_wait_for_common(struct completion *x,
 
 		__add_wait_queue_tail_exclusive(&x->wait, &wait);
 		do {
+			task_thread_info(current)->pWaitingCompletion = x;
 			if (signal_pending_state(state, current)) {
 				timeout = -ERESTARTSYS;
 				break;
@@ -4985,6 +5018,7 @@ do_wait_for_common(struct completion *x,
 			timeout = action(timeout);
 			spin_lock_irq(&x->wait.lock);
 		} while (!x->done && timeout);
+		task_thread_info(current)->pWaitingCompletion = &fake_completion;
 		__remove_wait_queue(&x->wait, &wait);
 		if (!x->done)
 			return timeout;

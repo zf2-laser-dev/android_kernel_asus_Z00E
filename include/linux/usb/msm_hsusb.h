@@ -69,6 +69,9 @@ enum usb_mode_type {
 	USB_PERIPHERAL,
 	USB_HOST,
 	USB_OTG,
+//ASUS_BSP+++ Landice "[ZE500KL][USBH][NA][Spec] Enable manual mode switching"
+	USB_AUTO,
+//ASUS_BSP--- Landice "[ZE500KL][USBH][NA][Spec] Enable manual mode switching"
 };
 
 /**
@@ -541,6 +544,9 @@ struct msm_otg {
 	bool pm_done;
 	struct qpnp_vadc_chip	*vadc_dev;
 	int ext_id_irq;
+//ASUS_BSP+++ Landice "[ZE500KL][USBH][NA][Spec] Enable manual mode switching"
+	enum usb_mode_type otg_mode;
+//ASUS_BSP--- Landice "[ZE500KL][USBH][NA][Spec] Enable manual mode switching"
 };
 
 struct ci13xxx_platform_data {

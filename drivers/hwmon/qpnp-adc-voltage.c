@@ -2043,6 +2043,7 @@ static ssize_t qpnp_adc_show(struct device *dev,
 
 	return snprintf(buf, QPNP_ADC_HWMON_NAME_LENGTH,
 		"Result:%lld Raw:%x\n", result.physical, result.adc_code);
+/*		"%lld\n", result.physical*1000);	 --- BSP Shawn_Huang For ATD parser format */
 }
 
 static struct sensor_device_attribute qpnp_adc_attr =

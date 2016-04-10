@@ -49,6 +49,8 @@ module_param(disable_restart_work, uint, S_IRUGO | S_IWUSR);
 static int enable_debug;
 module_param(enable_debug, int, S_IRUGO | S_IWUSR);
 
+#include "linux/asusdebug.h"/*ASUS-BBSP Save SSR reason+*/
+
 /**
  * enum p_subsys_state - state of a subsystem (private)
  * @SUBSYS_NORMAL: subsystem is operating normally
@@ -278,6 +280,18 @@ static DEFINE_IDA(subsys_ida);
 
 static int enable_ramdumps;
 module_param(enable_ramdumps, int, S_IRUGO | S_IWUSR);
+
+/*ASUS-BBSP Save SSR reason+++*/
+#define MAX_SSR_REASON_LEN (128)
+static char *ssr_reason = NULL;
+module_param(ssr_reason, charp, 0444);
+
+void subsys_save_reason(char *name, char *reason)
+{
+	strlcpy(ssr_reason, reason, MAX_SSR_REASON_LEN);
+	ASUSEvtlog("[SSR]:%s %s\n", name, reason);/*ASUS-BBSP Add SSR inform to ASUSEvtLog+*/
+}
+/*ASUS-BBSP Save SSR reason---*/
 
 struct workqueue_struct *ssr_wq;
 static struct class *char_class;
@@ -752,6 +766,8 @@ static void subsystem_restart_wq_func(struct work_struct *work)
 	mutex_lock(&track->lock);
 	do_epoch_check(dev);
 
+	kobject_uevent(&(desc->dev->kobj), KOBJ_OFFLINE);/*ASUS-BBSP Modify for saving ramdump+*/
+
 	/*
 	 * It's necessary to take the registration lock because the subsystem
 	 * list in the SoC restart order will be traversed and it shouldn't be
@@ -784,6 +800,8 @@ static void subsystem_restart_wq_func(struct work_struct *work)
 
 	mutex_unlock(&soc_order_reg_lock);
 	mutex_unlock(&track->lock);
+
+	kobject_uevent(&(desc->dev->kobj), KOBJ_ONLINE);/*ASUS-BBSP Modify for saving ramdump+*/
 
 	spin_lock_irqsave(&track->s_lock, flags);
 	track->p_state = SUBSYS_NORMAL;
@@ -1589,6 +1607,8 @@ static int __init subsys_restart_init(void)
 			&panic_nb);
 	if (ret)
 		goto err_soc;
+
+	ssr_reason = kzalloc(sizeof(char) * MAX_SSR_REASON_LEN, GFP_KERNEL);/*ASUS-BBSP Save SSR reason+*/
 
 	return 0;
 

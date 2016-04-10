@@ -307,7 +307,7 @@ rx_submit(struct eth_dev *dev, struct usb_request *req, gfp_t gfp_flags)
 	size_t		size = 0;
 	struct usb_ep	*out;
 	unsigned long	flags;
-	unsigned short reserve_headroom = 0;
+	unsigned short reserve_headroom;
 
 	spin_lock_irqsave(&dev->lock, flags);
 	if (dev->port_usb)
@@ -346,7 +346,9 @@ rx_submit(struct eth_dev *dev, struct usb_request *req, gfp_t gfp_flags)
 	spin_unlock_irqrestore(&dev->lock, flags);
 
 	if (dev->rx_needed_headroom)
-		reserve_headroom = ALIGN(dev->rx_needed_headroom, 4);
+		reserve_headroom = dev->rx_needed_headroom;
+	else
+		reserve_headroom = NET_IP_ALIGN;
 
 	pr_debug("%s: size: %zu + %d(hr)", __func__, size, reserve_headroom);
 
@@ -460,7 +462,7 @@ clean:
 	}
 
 	if (queue)
-		queue_work(uether_wq, &dev->rx_work);
+		queue_work_on(0, uether_wq, &dev->rx_work);
 }
 
 static int prealloc(struct list_head *list,
@@ -1610,8 +1612,13 @@ struct eth_dev *gether_setup_name(struct usb_gadget *g, u8 ethaddr[ETH_ALEN],
 		dev_warn(&g->dev,
 			"using random %s ethernet address\n", "host");
 
-	if (ethaddr)
+//ASUS_BSP+++ "[USB][NA][Fix] fix rndis host MAC"
+	if (ethaddr && is_valid_ether_addr(ethaddr)) {
+		memcpy(dev->host_mac, ethaddr, ETH_ALEN);
+	} else {
 		memcpy(ethaddr, dev->host_mac, ETH_ALEN);
+	}
+//ASUS_BSP--- "[USB][NA][Fix] fix rndis host MAC"
 
 	net->netdev_ops = &eth_netdev_ops;
 
@@ -2001,7 +2008,7 @@ static void uether_debugfs_exit(struct eth_dev *dev)
 
 static int __init gether_init(void)
 {
-	uether_wq  = create_singlethread_workqueue("uether");
+	uether_wq = alloc_workqueue("uether", WQ_CPU_INTENSIVE, 1);
 	if (!uether_wq) {
 		pr_err("%s: Unable to create workqueue: uether\n", __func__);
 		return -ENOMEM;

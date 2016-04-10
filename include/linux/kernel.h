@@ -14,6 +14,84 @@
 #include <linux/dynamic_debug.h>
 #include <asm/byteorder.h>
 #include <uapi/linux/kernel.h>
+#include <linux/asusdebug.h>
+
+// +++ ASUS_BSP : add for miniporting
+enum DEVICE_HWID
+{
+	//ZE500KL
+	ZE500KL_EVB = 0x0,
+	ZE500KL_SR1 = 0x1,
+	ZE500KL_SR2 = 0x2,
+	ZE500KL_ER1 = 0x3,
+	ZE500KL_ER2 = 0x4,
+	ZE500KL_PR  = 0x5,
+	ZE500KL_PREMP  = 0x6,
+	ZE500KL_MP  = 0x7,
+
+	ZE500KL_MSM8939_EVB = 0x10,
+	ZE500KL_MSM8939_SR1 = 0x11,
+	ZE500KL_MSM8939_SR2 = 0x12,
+	ZE500KL_MSM8939_ER1 = 0x13,
+	ZE500KL_MSM8939_ER2 = 0x14,
+	ZE500KL_MSM8939_PR  = 0x15,
+	ZE500KL_MSM8939_MP  = 0x16,
+
+	ZE500KL_CMCC_EVB = 0x20,
+	ZE500KL_CMCC_SR1 = 0x21,
+	ZE500KL_CMCC_SR2 = 0x22,
+	ZE500KL_CMCC_ER1 = 0x23,
+	ZE500KL_CMCC_ER2 = 0x24,
+	ZE500KL_CMCC_PR  = 0x25,
+	ZE500KL_CMCC_PREMP  = 0x26,
+	ZE500KL_CMCC_MP  = 0x27,
+
+	ZE500KG_EVB = 0x30,
+	ZE500KG_SR1 = 0x31,
+	ZE500KG_SR2 = 0x32,
+	ZE500KG_ER1 = 0x33,
+	ZE500KG_ER2 = 0x34,
+	ZE500KG_PR  = 0x35,
+	ZE500KG_PREMP  = 0x36,
+	ZE500KG_MP  = 0x37,
+
+	ZE500KL_UNKNOWN = 0xFF
+};
+extern enum DEVICE_HWID g_ASUS_hwID;
+extern int g_ASUS_laserID;  //ASUS_BSP  Deka "support laser sensor 2nd source"
+// --- ASUS_BSP : add for miniporting
+
+extern int g_soc_id;
+
+//ASUS_BSP: Louis +++
+enum {
+	ZE500KL_LCD_AUO = 0,
+	ZE500KL_LCD_TIANMA,
+	ZE500KL_LCD_BOE,
+	A500_HSD
+};
+extern int g_asus_lcdID; 
+//ASUS_BSP: Louis ---
+
+extern bool g_Charger_mode; //ASUS BSP Austin_T +++
+
+//ASUS_BSP: Deeo +++
+enum DEVICE_MCPID
+{
+	HYNIX_8G_8G = 0xf,
+	HYNIX_8G_16G = 0xe,
+	HYNIX_16G_16G = 0xd,
+	SAMSUNG_8G_8G = 0xc,
+	SAMSUNG_8G_16G = 0xb,
+	SAMSUNG_16G_16G = 0xa,
+	HYNIX_32G_16G = 0x9,
+	HYNIX_16G_8G = 0x8,
+	SAMSUNG_16G_8G = 0x7,
+
+	MCP_ID_UNKNOW = 0xFF,
+};
+extern enum DEVICE_MCPID g_mcp_id;
+//ASUS_BSP: Deeo ---
 
 #define USHRT_MAX	((u16)(~0U))
 #define SHRT_MAX	((s16)(USHRT_MAX>>1))

@@ -2108,6 +2108,7 @@ static bool manage_workers(struct worker *worker)
  * CONTEXT:
  * spin_lock_irq(pool->lock) which is released and regrabbed.
  */
+static char work_comm[16];
 static void process_one_work(struct worker *worker, struct work_struct *work)
 __releases(&pool->lock)
 __acquires(&pool->lock)
@@ -2157,7 +2158,9 @@ __acquires(&pool->lock)
 	worker->current_func = work->func;
 	worker->current_pwq = pwq;
 	work_color = get_work_color(work);
-
+	memset(work_comm, 0, sizeof(work_comm));
+	snprintf(work_comm, 15, "wk:%pf", work->func);
+	strncpy(current->comm, work_comm, 15);
 	list_del_init(&work->entry);
 
 	/*
@@ -5065,3 +5068,15 @@ static int __init init_workqueues(void)
 	return 0;
 }
 early_initcall(init_workqueues);
+
+int get_worker_function(void **worker_func, struct task_struct *task)
+{
+	work_func_t *fn = NULL;
+	struct worker *worker;
+
+	worker = probe_kthread_data(task);
+	probe_kernel_read(&fn, &worker->current_func, sizeof(fn));
+	*worker_func = (void *)fn;
+
+	return 0;
+}

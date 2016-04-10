@@ -2,7 +2,7 @@
  * Core MDSS framebuffer driver.
  *
  * Copyright (C) 2007 Google Incorporated
- * Copyright (c) 2008-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2008-2014, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -65,6 +65,18 @@
 #endif
 
 #define MAX_FBI_LIST 32
+
+//+++ ASUS_BSP: Louis
+#define COMMIT_FRAMES_COUNT 5
+int display_commit_cnt;
+extern void set_dimming_cmd(void);
+extern void set_tcon_cabc(int);
+extern void set_bklt_cmd(int);
+extern int g_dcs_bl_value;
+extern void set_bklt_cmd(int mode);
+int g_charger_cnt = 2;
+//--- ASUS_BSP: Louis
+
 static struct fb_info *fbi_list[MAX_FBI_LIST];
 static int fbi_list_index;
 
@@ -155,31 +167,13 @@ static int mdss_fb_notify_update(struct msm_fb_data_type *mfd,
 	if (notify > NOTIFY_UPDATE_POWER_OFF)
 		return -EINVAL;
 
-	if (notify == NOTIFY_UPDATE_INIT) {
-		mutex_lock(&mfd->update.lock);
-		mfd->update.init_done = true;
-		mutex_unlock(&mfd->update.lock);
-		ret = 1;
-	} else if (notify == NOTIFY_UPDATE_DEINIT) {
-		mutex_lock(&mfd->update.lock);
-		mfd->update.init_done = false;
-		mutex_unlock(&mfd->update.lock);
-		complete(&mfd->update.comp);
-		complete(&mfd->no_update.comp);
-		ret = 1;
-	} else if (mfd->update.is_suspend) {
+	if (mfd->update.is_suspend) {
 		to_user = NOTIFY_TYPE_SUSPEND;
 		mfd->update.is_suspend = 0;
 		ret = 1;
 	} else if (notify == NOTIFY_UPDATE_START) {
+		INIT_COMPLETION(mfd->update.comp);
 		mutex_lock(&mfd->update.lock);
-		if (mfd->update.init_done)
-			INIT_COMPLETION(mfd->update.comp);
-		else {
-			mutex_unlock(&mfd->update.lock);
-			pr_err("notify update start called without init\n");
-			return -EINVAL;
-		}
 		mfd->update.ref_count++;
 		mutex_unlock(&mfd->update.lock);
 		ret = wait_for_completion_interruptible_timeout(
@@ -193,15 +187,7 @@ static int mdss_fb_notify_update(struct msm_fb_data_type *mfd,
 			ret = 1;
 		}
 	} else if (notify == NOTIFY_UPDATE_STOP) {
-		mutex_lock(&mfd->update.lock);
-		if (mfd->update.init_done)
-			INIT_COMPLETION(mfd->no_update.comp);
-		else {
-			mutex_unlock(&mfd->update.lock);
-			pr_err("notify update stop called without init\n");
-			return -EINVAL;
-		}
-		mutex_unlock(&mfd->update.lock);
+		INIT_COMPLETION(mfd->no_update.comp);
 		mutex_lock(&mfd->no_update.lock);
 		mfd->no_update.ref_count++;
 		mutex_unlock(&mfd->no_update.lock);
@@ -654,6 +640,41 @@ static ssize_t mdss_fb_get_doze_mode(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "%d\n", mfd->doze_mode);
 }
 
+//ASUS_BSP: Louis +++
+static ssize_t report_cabl_uevent(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t count)
+{
+	int level;
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct uevent_type cabl_event[] = {
+					{"cabl:off", NULL},
+					{"cabl:set Low", NULL},
+					{"cabl:set Medium", NULL},
+					{"cabl:set High", NULL},
+					{"cabl:set Auto", NULL},
+					{"cabl:on", NULL},
+	};
+
+	if (!strncmp("on", buf, 2))
+		level = 5;
+	else if (!strncmp("off", buf, 3))
+		level = 0;
+	else {
+		sscanf(buf, "%d", &level);
+		if (level >= 1 && level <= 4) {
+		} else {
+			pr_err("Undefined cabl cmd! \n");
+			return -EINVAL;
+		}
+	}
+
+	pr_info("[CABL] %s: %s\n", __func__, cabl_event[level].cmdstr);
+	kobject_uevent_env(&fbi->dev->kobj, KOBJ_CHANGE, (char **) &cabl_event[level]);
+	
+    return count;
+}
+//ASUS_BSP: Louis ---
+
 static DEVICE_ATTR(msm_fb_type, S_IRUGO, mdss_fb_get_type, NULL);
 static DEVICE_ATTR(msm_fb_split, S_IRUGO | S_IWUSR, mdss_fb_show_split,
 					mdss_fb_store_split);
@@ -669,6 +690,8 @@ static DEVICE_ATTR(msm_fb_thermal_level, S_IRUGO | S_IWUSR,
 static DEVICE_ATTR(always_on, S_IRUGO | S_IWUSR | S_IWGRP,
 	mdss_fb_get_doze_mode, mdss_fb_set_doze_mode);
 
+static DEVICE_ATTR(pp_cabl, S_IWUSR | S_IRUGO, NULL, report_cabl_uevent);	//Louis	+++
+
 static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_msm_fb_type.attr,
 	&dev_attr_msm_fb_split.attr,
@@ -679,6 +702,7 @@ static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_msm_fb_src_split_info.attr,
 	&dev_attr_msm_fb_thermal_level.attr,
 	&dev_attr_always_on.attr,
+	&dev_attr_pp_cabl.attr,	//Louis
 	NULL,
 };
 
@@ -704,13 +728,35 @@ static void mdss_fb_remove_sysfs(struct msm_fb_data_type *mfd)
 static void mdss_fb_shutdown(struct platform_device *pdev)
 {
 	struct msm_fb_data_type *mfd = platform_get_drvdata(pdev);
+	/* ASUS_BSP: Louis ++	*/
+	struct task_struct *task = current->group_leader;
 
+	pr_info("[Display] %s: fb%d from %s \n", __func__, mfd->index, task->comm);
+	/* ASUS_BSP: Louis --	*/
 	mfd->shutdown_pending = true;
 	lock_fb_info(mfd->fbi);
 	mdss_fb_release_all(mfd->fbi, true);
 	sysfs_notify(&mfd->fbi->dev->kobj, NULL, "show_blank_event");
 	unlock_fb_info(mfd->fbi);
 }
+
+//ASUS_BSP: Louis +++
+struct fb_info *asus_get_fb_info(int fb_num)
+{
+	struct fb_info *fbi_info = NULL;
+	
+	if (fb_num > MAX_FBI_LIST)
+		return 0;
+
+	fbi_info = fbi_list[fb_num];
+	if (!fbi_info)
+		return 0;
+
+	return fbi_info;
+
+}
+EXPORT_SYMBOL(asus_get_fb_info);
+//ASUS_BSP: Louis ---
 
 static int mdss_fb_probe(struct platform_device *pdev)
 {
@@ -1084,7 +1130,8 @@ static void mdss_fb_scale_bl(struct msm_fb_data_type *mfd, u32 *bl_lvl)
 void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 {
 	struct mdss_panel_data *pdata;
-	u32 temp = bkl_lvl;
+	u32 temp = bkl_lvl, ad_bl;
+	int ret = -EINVAL;
 	bool bl_notify_needed = false;
 
 	/* todo: temporary workaround to support doze mode */
@@ -1106,9 +1153,18 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 	pdata = dev_get_platdata(&mfd->pdev->dev);
 
 	if ((pdata) && (pdata->set_backlight)) {
-		if (mfd->mdp.ad_calc_bl)
-			(*mfd->mdp.ad_calc_bl)(mfd, temp, &temp,
-							&bl_notify_needed);
+		if (mfd->mdp.ad_calc_bl) {
+			if (mfd->ad_bl_level == 0)
+				mfd->ad_bl_level = temp;
+			ad_bl = mfd->ad_bl_level;
+			ret = (*mfd->mdp.ad_calc_bl)(mfd, temp, &temp, &ad_bl);
+			if ((!ret) && (mfd->ad_bl_level != ad_bl) &&
+				mfd->mdp.ad_invalidate_input) {
+				mfd->ad_bl_level = ad_bl;
+				(*mfd->mdp.ad_invalidate_input)(mfd);
+				bl_notify_needed = true;
+			}
+		}
 		if (!IS_CALIB_MODE_BL(mfd))
 			mdss_fb_scale_bl(mfd, &temp);
 		/*
@@ -1136,8 +1192,9 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 void mdss_fb_update_backlight(struct msm_fb_data_type *mfd)
 {
 	struct mdss_panel_data *pdata;
+	int ret = 0;
 	u32 temp;
-	bool bl_notify = false;
+	u32 ad_bl;
 
 	if (!mfd->unset_bl_level)
 		return;
@@ -1147,9 +1204,18 @@ void mdss_fb_update_backlight(struct msm_fb_data_type *mfd)
 		if ((pdata) && (pdata->set_backlight)) {
 			mfd->bl_level = mfd->unset_bl_level;
 			temp = mfd->bl_level;
-			if (mfd->mdp.ad_calc_bl)
-				(*mfd->mdp.ad_calc_bl)(mfd, temp, &temp,
-								&bl_notify);
+			if (mfd->mdp.ad_calc_bl) {
+				if (mfd->ad_bl_level == 0)
+					mfd->ad_bl_level = temp;
+				ad_bl = mfd->ad_bl_level;
+				ret = (*mfd->mdp.ad_calc_bl)(mfd, temp, &temp,
+					&ad_bl);
+				if ((!ret) && (mfd->ad_bl_level != ad_bl) &&
+						mfd->mdp.ad_invalidate_input) {
+					mfd->ad_bl_level = ad_bl;
+					(*mfd->mdp.ad_invalidate_input)(mfd);
+				}
+			}
 			pdata->set_backlight(pdata, temp);
 			mfd->bl_level_scaled = mfd->unset_bl_level;
 			mfd->bl_updated = 1;
@@ -1334,6 +1400,12 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 				mdss_fb_release_fences(mfd);
 			mfd->op_enable = true;
 			complete(&mfd->power_off_comp);
+            //+++ ASUS_BSP: Louis
+            if (display_commit_cnt == 0)
+                display_commit_cnt = COMMIT_FRAMES_COUNT;
+            if (g_charger_cnt == 0)
+                g_charger_cnt = 2;
+            //--- ASUS_BSP: Louis 
 		}
 		break;
 	}
@@ -1962,7 +2034,6 @@ static int mdss_fb_register(struct msm_fb_data_type *mfd)
 	mfd->no_update.timer.data = (unsigned long)mfd;
 	mfd->update.ref_count = 0;
 	mfd->no_update.ref_count = 0;
-	mfd->update.init_done = false;
 	init_completion(&mfd->update.comp);
 	init_completion(&mfd->no_update.comp);
 	init_completion(&mfd->power_off_comp);
@@ -2059,12 +2130,20 @@ static int mdss_fb_open(struct fb_info *info, int user)
 	int result;
 	int pid = current->tgid;
 	struct task_struct *task = current->group_leader;
+	/* ASUS_BSP: Louis ++   */
+	static int unexpected_fb_open = 5;
 
 	if (mfd->shutdown_pending) {
-		pr_err("Shutdown pending. Aborting operation. Request from pid:%d name=%s\n",
-				pid, task->comm);
-		return -EPERM;
+		if (unexpected_fb_open > 0) {
+			unexpected_fb_open--;
+			pr_err("Shutdown pending. Aborting operation. Request from pid:%d name=%s, unexpected_fb_open(%d)\n",
+					pid, task->comm, unexpected_fb_open);
+			return -EPERM;
+		} else {
+			return 0;
+		}
 	}
+	/* ASUS_BSP: Louis --   */
 
 	file_info = kmalloc(sizeof(*file_info), GFP_KERNEL);
 	if (!file_info) {
@@ -2261,6 +2340,12 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 
 static int mdss_fb_release(struct fb_info *info, int user)
 {
+	//ASUS_BSP: Louis++, block once init.c already shutdown device 
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
+	if (mfd->shutdown_pending) {
+		return -EPERM;
+	}
+	//ASUS_BSP: Louis--
 	return mdss_fb_release_all(info, false);
 }
 
@@ -2800,26 +2885,16 @@ static int mdss_fb_check_var(struct fb_var_screeninfo *var,
 		return -EINVAL;
 
 	if (mfd->panel_info) {
-		struct mdss_panel_info *panel_info;
+		struct mdss_panel_info panel_info;
 		int rc;
-		panel_info = kzalloc(sizeof(struct mdss_panel_info),
-				GFP_KERNEL);
-		if (!panel_info) {
-			pr_err("panel info is NULL\n");
-			return -ENOMEM;
-		}
 
-		memcpy(panel_info, mfd->panel_info,
-				sizeof(struct mdss_panel_info));
-		mdss_fb_var_to_panelinfo(var, panel_info);
+		memcpy(&panel_info, mfd->panel_info, sizeof(panel_info));
+		mdss_fb_var_to_panelinfo(var, &panel_info);
 		rc = mdss_fb_send_panel_event(mfd, MDSS_EVENT_CHECK_PARAMS,
-			panel_info);
-		if (IS_ERR_VALUE(rc)) {
-			kfree(panel_info);
+			&panel_info);
+		if (IS_ERR_VALUE(rc))
 			return rc;
-		}
 		mfd->panel_reconfig = rc;
-		kfree(panel_info);
 	}
 
 	return 0;
@@ -2831,6 +2906,7 @@ static int mdss_fb_set_par(struct fb_info *info)
 	struct fb_var_screeninfo *var = &info->var;
 	int old_imgType;
 	int ret = 0;
+    int level = 100;
 
 	ret = mdss_fb_pan_idle(mfd);
 	if (ret) {
@@ -2898,6 +2974,12 @@ static int mdss_fb_set_par(struct fb_info *info)
 		mdss_fb_blank_sub(FB_BLANK_UNBLANK, info, mfd->op_enable);
 		mfd->panel_reconfig = false;
 	}
+
+    if(g_charger_cnt == 1)
+        set_bklt_cmd(level);
+
+    if(g_charger_cnt > 0)
+        g_charger_cnt--;
 
 	return ret;
 }
@@ -3184,6 +3266,16 @@ static int mdss_fb_display_commit(struct fb_info *info,
 		return ret;
 	}
 	ret = mdss_fb_pan_display_ex(info, &disp_commit);
+	//+++ ASUS_BSP: Louis
+    if (display_commit_cnt > 0) {
+        if (display_commit_cnt == 4)
+            set_bklt_cmd(g_dcs_bl_value);
+        if (display_commit_cnt == 1)
+            set_dimming_cmd();
+        printk("fb%d dpc\n", info->node);
+        display_commit_cnt--;
+    }
+	//--- ASUS_BSP: Louis
 	return ret;
 }
 
@@ -3231,6 +3323,7 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 	struct msm_sync_pt_data *sync_pt_data = NULL;
 	unsigned int dsi_mode = 0;
 	struct mdss_panel_data *pdata = NULL;
+	int panel_cabc_mode = Still_MODE;	//ASUS_BSP: Louis ++
 
 	if (!info || !info->par)
 		return -EINVAL;
@@ -3301,6 +3394,17 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 		ret = mdss_fb_display_commit(info, argp);
 		break;
 
+    //ASUS_BSP: Louis +++
+	case MSMFB_CABC_CTRL:
+		ret = copy_from_user(&panel_cabc_mode, argp, sizeof(panel_cabc_mode));
+		if (ret) {
+			pr_err("%s: CABC mode(%d) set failed\n", __func__, panel_cabc_mode);
+			goto exit;
+		}
+		set_tcon_cabc(panel_cabc_mode);
+		break;
+	//ASUS_BSP: Louis ---
+	
 	case MSMFB_LPM_ENABLE:
 		ret = copy_from_user(&dsi_mode, argp, sizeof(dsi_mode));
 		if (ret) {

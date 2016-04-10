@@ -38,6 +38,8 @@ enum {
 	POWER_SUPPLY_STATUS_DISCHARGING,
 	POWER_SUPPLY_STATUS_NOT_CHARGING,
 	POWER_SUPPLY_STATUS_FULL,
+	POWER_SUPPLY_STATUS_QUICK_CHARGING,
+	POWER_SUPPLY_STATUS_NOT_QUICK_CHARGING,
 };
 
 enum {
@@ -289,6 +291,7 @@ extern int power_supply_register(struct device *parent,
 				 struct power_supply *psy);
 extern void power_supply_unregister(struct power_supply *psy);
 extern int power_supply_powers(struct power_supply *psy, struct device *dev);
+extern int is_usb_chg_plugged_in(void);
 #else
 static inline struct power_supply *power_supply_get_by_name(char *name)
 							{ return NULL; }

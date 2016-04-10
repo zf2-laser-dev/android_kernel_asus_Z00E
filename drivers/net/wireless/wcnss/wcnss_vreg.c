@@ -25,6 +25,9 @@
 #include <linux/slab.h>
 #include <linux/clk.h>
 
+//ASUS_BSP+++ "for /data/log/ASUSEvtlog"
+#include <linux/asusdebug.h>
+//ASUS_BSP--- "for /data/log/ASUSEvtlog"
 
 static void __iomem *msm_wcnss_base;
 static LIST_HEAD(power_on_lock_list);
@@ -42,13 +45,6 @@ static int is_power_on;
 
 #define PRONTO_IRIS_REG_READ_OFFSET       0x1134
 #define PRONTO_IRIS_REG_CHIP_ID           0x04
-/* IRIS card chip ID's */
-#define WCN3660       0x0200
-#define WCN3660A      0x0300
-#define WCN3660B      0x0400
-#define WCN3620       0x5111
-#define WCN3620A      0x5112
-#define WCN3610       0x9101
 
 #define WCNSS_PMU_CFG_IRIS_XO_CFG          BIT(3)
 #define WCNSS_PMU_CFG_IRIS_XO_EN           BIT(4)
@@ -134,8 +130,9 @@ static struct vregs_info iris_vregs_pronto_v2[] = {
 
 /* WCNSS regulators for Pronto v2 hardware */
 static struct vregs_info pronto_vregs_pronto_v2[] = {
-	{"qcom,pronto-vddmx",  VREG_NULL_CONFIG, 1287500,  0,
-		1287500, 0,    NULL},
+	{"qcom,pronto-vddmx",  VREG_NULL_CONFIG,
+		RPM_REGULATOR_CORNER_SUPER_TURBO,  0,
+		RPM_REGULATOR_CORNER_SUPER_TURBO, 0,    NULL},
 	{"qcom,pronto-vddcx",  VREG_NULL_CONFIG, RPM_REGULATOR_CORNER_NORMAL,
 		RPM_REGULATOR_CORNER_NONE, RPM_REGULATOR_CORNER_SUPER_TURBO,
 		0,             NULL},
@@ -175,46 +172,12 @@ int xo_auto_detect(u32 reg)
 	}
 }
 
-int validate_iris_chip_id(u32 reg)
-{
-	int iris_id;
-	iris_id = reg >> 16;
-
-	switch (iris_id) {
-	case WCN3660:
-	case WCN3660A:
-	case WCN3660B:
-	case WCN3620:
-	case WCN3620A:
-	case WCN3610:
-		return 0;
-	default:
-		return 1;
-	}
-}
-
-void  wcnss_iris_reset(u32 reg, void __iomem *pmu_conf_reg)
-{
-	/* Reset IRIS */
-	reg |= WCNSS_PMU_CFG_IRIS_RESET;
-	writel_relaxed(reg, pmu_conf_reg);
-
-	/* Wait for PMU_CFG.iris_reg_reset_sts */
-	while (readl_relaxed(pmu_conf_reg) &
-			WCNSS_PMU_CFG_IRIS_RESET_STS)
-		cpu_relax();
-
-	/* Reset iris reset bit */
-	reg &= ~WCNSS_PMU_CFG_IRIS_RESET;
-	writel_relaxed(reg, pmu_conf_reg);
-}
-
 static int
 configure_iris_xo(struct device *dev,
 			struct wcnss_wlan_config *cfg,
 			int on, int *iris_xo_set)
 {
-	u32 reg = 0, i = 0;
+	u32 reg = 0;
 	u32 iris_reg = WCNSS_INVALID_IRIS_REG;
 	int rc = 0;
 	int pmu_offset = 0;
@@ -285,44 +248,34 @@ configure_iris_xo(struct device *dev,
 			iris_reg = readl_relaxed(iris_read_reg);
 		}
 
-		wcnss_iris_reset(reg, pmu_conf_reg);
-
 		if (iris_reg != WCNSS_INVALID_IRIS_REG) {
 			iris_reg &= 0xffff;
 			iris_reg |= PRONTO_IRIS_REG_CHIP_ID;
 			writel_relaxed(iris_reg, iris_read_reg);
-			do {
-				/* Iris read */
-				reg = readl_relaxed(pmu_conf_reg);
-				reg |= WCNSS_PMU_CFG_IRIS_XO_READ;
-				writel_relaxed(reg, pmu_conf_reg);
 
-				/* Wait for PMU_CFG.iris_reg_read_sts */
-				while (readl_relaxed(pmu_conf_reg) &
-						WCNSS_PMU_CFG_IRIS_XO_READ_STS)
-					cpu_relax();
+			/* Iris read */
+			reg = readl_relaxed(pmu_conf_reg);
+			reg |= WCNSS_PMU_CFG_IRIS_XO_READ;
+			writel_relaxed(reg, pmu_conf_reg);
 
-				iris_reg = readl_relaxed(iris_read_reg);
-				pr_info("wcnss: IRIS Reg: %08x\n", iris_reg);
+			/* Wait for PMU_CFG.iris_reg_read_sts */
+			while (readl_relaxed(pmu_conf_reg) &
+					WCNSS_PMU_CFG_IRIS_XO_READ_STS)
+				cpu_relax();
 
-				if (validate_iris_chip_id(iris_reg) && i >= 4) {
-					pr_info("wcnss: IRIS Card absent/invalid\n");
-					auto_detect = WCNSS_XO_INVALID;
-					/* Reset iris read bit */
-					reg &= ~WCNSS_PMU_CFG_IRIS_XO_READ;
-					/* Clear XO_MODE[b2:b1] bits.
-					 * Clear implies 19.2 MHz TCXO
-					 */
-					reg &= ~(WCNSS_PMU_CFG_IRIS_XO_MODE);
-					goto xo_configure;
-				} else if (!validate_iris_chip_id(iris_reg)) {
-					pr_debug("wcnss: IRIS Card is present\n");
-					break;
-				}
+			iris_reg = readl_relaxed(iris_read_reg);
+			pr_info("wcnss: IRIS Reg: %08x\n", iris_reg);
+			if (iris_reg == PRONTO_IRIS_REG_CHIP_ID) {
+				pr_info("wcnss: IRIS Card not Preset\n");
+				auto_detect = WCNSS_XO_INVALID;
+				/* Reset iris read bit */
 				reg &= ~WCNSS_PMU_CFG_IRIS_XO_READ;
-				writel_relaxed(reg, pmu_conf_reg);
-				wcnss_iris_reset(reg, pmu_conf_reg);
-			} while (i++ < 5);
+				/* Clear XO_MODE[b2:b1] bits.
+				   Clear implies 19.2 MHz TCXO
+				 */
+				reg &= ~(WCNSS_PMU_CFG_IRIS_XO_MODE);
+				goto xo_configure;
+			}
 			auto_detect = xo_auto_detect(iris_reg);
 
 			/* Reset iris read bit */
@@ -348,7 +301,18 @@ configure_iris_xo(struct device *dev,
 xo_configure:
 		writel_relaxed(reg, pmu_conf_reg);
 
-		wcnss_iris_reset(reg, pmu_conf_reg);
+		/* Reset IRIS */
+		reg |= WCNSS_PMU_CFG_IRIS_RESET;
+		writel_relaxed(reg, pmu_conf_reg);
+
+		/* Wait for PMU_CFG.iris_reg_reset_sts */
+		while (readl_relaxed(pmu_conf_reg) &
+				WCNSS_PMU_CFG_IRIS_RESET_STS)
+			cpu_relax();
+
+		/* Reset iris reset bit */
+		reg &= ~WCNSS_PMU_CFG_IRIS_RESET;
+		writel_relaxed(reg, pmu_conf_reg);
 
 		/* Start IRIS XO configuration */
 		reg |= WCNSS_PMU_CFG_IRIS_XO_CFG;
@@ -621,20 +585,63 @@ int wcnss_wlan_power(struct device *dev,
 		/* RIVA regulator settings */
 		rc = wcnss_core_vregs_on(dev, hw_type,
 			cfg->is_pronto_vt);
-		if (rc)
+		if (rc) {
+			printk("[wcnss]: wcnss_core_vregs_on fail.\n");
+
+			//ASUS_BSP+++ "for /data/log/ASUSEvtlog"
+			ASUSEvtlog("[wcnss]: wcnss_core_vregs_on fail.\n");
+			//ASUS_BSP--- "for /data/log/ASUSEvtlog"
+
 			goto fail_wcnss_on;
+		}
+		else {
+			printk("[wcnss]: wcnss_core_vregs_on.\n");
+
+			//ASUS_BSP+++ "for /data/log/ASUSEvtlog"
+			ASUSEvtlog("[wcnss]: wcnss_core_vregs_on.\n");
+			//ASUS_BSP--- "for /data/log/ASUSEvtlog"
+        	}
 
 		/* IRIS regulator settings */
 		rc = wcnss_iris_vregs_on(dev, hw_type,
 			cfg->is_pronto_vt);
-		if (rc)
+		if (rc) {
+			printk("[wcnss]: wcnss_iris_vregs_on fail.\n");
+
+			//ASUS_BSP+++ "for /data/log/ASUSEvtlog"
+			ASUSEvtlog("[wcnss]: wcnss_iris_vregs_on fail.\n");
+			//ASUS_BSP--- "for /data/log/ASUSEvtlog"
+
 			goto fail_iris_on;
+		}
+		else {
+			printk("[wcnss]: wcnss_iris_vregs_on.\n");
+
+			//ASUS_BSP+++ "for /data/log/ASUSEvtlog"
+			ASUSEvtlog("[wcnss]: wcnss_iris_vregs_on.\n");
+			//ASUS_BSP--- "for /data/log/ASUSEvtlog"
+        	}
 
 		/* Configure IRIS XO */
 		rc = configure_iris_xo(dev, cfg,
 				WCNSS_WLAN_SWITCH_ON, iris_xo_set);
-		if (rc)
+		if (rc) {
+			printk("[wcnss]: configure_iris_xo (WCNSS_WLAN_SWITCH_ON) fail.\n");
+
+			//ASUS_BSP+++ "for /data/log/ASUSEvtlog"
+			ASUSEvtlog("[wcnss]: configure_iris_xo WCNSS_WLAN_SWITCH_ON fail.\n");
+			//ASUS_BSP--- "for /data/log/ASUSEvtlog"
+
 			goto fail_iris_xo;
+		}
+		else {
+			printk("[wcnss]: configure_iris_xo (WCNSS_WLAN_SWITCH_ON).\n");
+
+			//ASUS_BSP+++ "for /data/log/ASUSEvtlog"
+			ASUSEvtlog("[wcnss]: configure_iris_xo WCNSS_WLAN_SWITCH_ON.\n");
+			//ASUS_BSP--- "for /data/log/ASUSEvtlog"
+        	}
+
 
 		is_power_on = true;
 
@@ -642,8 +649,22 @@ int wcnss_wlan_power(struct device *dev,
 		is_power_on = false;
 		configure_iris_xo(dev, cfg,
 				WCNSS_WLAN_SWITCH_OFF, NULL);
+		printk("[wcnss]: configure_iris_xo (WCNSS_WLAN_SWITCH_OFF).\n");
+		//ASUS_BSP+++ "for /data/log/ASUSEvtlog"
+		ASUSEvtlog("[wcnss]: configure_iris_xo WCNSS_WLAN_SWITCH_OFF.\n");
+		//ASUS_BSP--- "for /data/log/ASUSEvtlog"
+
 		wcnss_iris_vregs_off(hw_type, cfg->is_pronto_vt);
+		printk("[wcnss]: wcnss_iris_vregs_off.\n");
+		//ASUS_BSP+++ "for /data/log/ASUSEvtlog"
+		ASUSEvtlog("[wcnss]: wcnss_iris_vregs_off.\n");
+		//ASUS_BSP--- "for /data/log/ASUSEvtlog"
+
 		wcnss_core_vregs_off(hw_type, cfg->is_pronto_vt);
+		printk("[wcnss]: wcnss_core_vregs_off.\n");
+		//ASUS_BSP+++ "for /data/log/ASUSEvtlog"
+		ASUSEvtlog("[wcnss]: wcnss_core_vregs_off.\n");
+		//ASUS_BSP--- "for /data/log/ASUSEvtlog"
 	}
 
 	up(&wcnss_power_on_lock);

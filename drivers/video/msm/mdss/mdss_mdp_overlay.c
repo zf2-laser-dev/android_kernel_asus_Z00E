@@ -44,6 +44,10 @@
 #define IS_RIGHT_MIXER_OV(flags, dst_x, left_lm_w)	\
 	((flags & MDSS_MDP_RIGHT_MIXER) || (dst_x >= left_lm_w))
 
+//ASUS_BSP: Louis +++
+extern int MdpBoostUp;
+//ASUS_BSP: Louis ---
+
 static int mdss_mdp_overlay_free_fb_pipe(struct msm_fb_data_type *mfd);
 static int mdss_mdp_overlay_fb_parse_dt(struct msm_fb_data_type *mfd);
 static int mdss_mdp_overlay_off(struct msm_fb_data_type *mfd);
@@ -1581,6 +1585,15 @@ unlock_exit:
 	if (ctl->shared_lock)
 		mutex_unlock(ctl->shared_lock);
 	ATRACE_END(__func__);
+	
+    //ASUS_BSP: Louis +++
+    if (MdpBoostUp > 0) {
+        MdpBoostUp--;
+        if (MdpBoostUp == 0) {
+            mdss_set_mdp_max_clk(0);
+        }
+    }
+    //ASUS_BSP: Louis ---
 
 	return ret;
 }
@@ -1962,18 +1975,6 @@ static void mdss_mdp_overlay_pan_display(struct msm_fb_data_type *mfd)
 		goto pan_display_error;
 	}
 
-	ret = mdss_mdp_overlay_get_fb_pipe(mfd, &pipe,
-					MDSS_MDP_MIXER_MUX_LEFT);
-	if (ret) {
-		pr_err("unable to allocate base pipe\n");
-		goto pan_display_error;
-	}
-
-	if (mdss_mdp_pipe_map(pipe)) {
-		pr_err("unable to map base pipe\n");
-		goto pan_display_error;
-	}
-
 	ret = mdss_mdp_overlay_start(mfd);
 	if (ret) {
 		pr_err("unable to start overlay %d (%d)\n", mfd->index, ret);
@@ -1983,6 +1984,18 @@ static void mdss_mdp_overlay_pan_display(struct msm_fb_data_type *mfd)
 	ret = mdss_iommu_ctrl(1);
 	if (IS_ERR_VALUE(ret)) {
 		pr_err("IOMMU attach failed\n");
+		goto pan_display_error;
+	}
+
+	ret = mdss_mdp_overlay_get_fb_pipe(mfd, &pipe,
+					MDSS_MDP_MIXER_MUX_LEFT);
+	if (ret) {
+		pr_err("unable to allocate base pipe\n");
+		goto pan_display_error;
+	}
+
+	if (mdss_mdp_pipe_map(pipe)) {
+		pr_err("unable to map base pipe\n");
 		goto pan_display_error;
 	}
 
@@ -2194,7 +2207,7 @@ static ssize_t dynamic_fps_sysfs_wta_dfps(struct device *dev,
 		rc = mdss_mdp_ctl_update_fps(mdp5_data->ctl, dfps);
 	}
 	if (!rc) {
-		pr_debug("%s: configured to '%d' FPS\n", __func__, dfps);
+		pr_info("%s: configured to '%d' FPS\n", __func__, dfps);
 	} else {
 		pr_err("Failed to configure '%d' FPS. rc = %d\n",
 							dfps, rc);

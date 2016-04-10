@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -220,7 +220,6 @@ struct mdss_mdp_ctl {
 	struct mdss_mdp_mixer *mixer_left;
 	struct mdss_mdp_mixer *mixer_right;
 	struct mutex lock;
-	struct mutex offlock;
 	struct mutex *shared_lock;
 	spinlock_t spin_lock;
 
@@ -254,7 +253,7 @@ struct mdss_mdp_ctl {
 
 	void *priv_data;
 	u32 wb_type;
-	u32 prg_fet;
+	bool prg_fet;
 };
 
 struct mdss_mdp_mixer {
@@ -953,3 +952,7 @@ int mdss_mdp_wb_get_secure(struct msm_fb_data_type *mfd, uint8_t *enable);
 void mdss_mdp_ctl_restore(void);
 int  mdss_mdp_ctl_reset(struct mdss_mdp_ctl *ctl);
 #endif /* MDSS_MDP_H */
+
+//ASUS_BSP: Louis +++
+void mdss_set_mdp_max_clk(bool boostup);
+//ASUS_BSP: Louis ---

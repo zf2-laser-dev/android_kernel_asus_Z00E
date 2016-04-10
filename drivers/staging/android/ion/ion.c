@@ -1477,9 +1477,14 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	return ret;
 }
 
+atomic_t  ION_Counter;
 static int ion_release(struct inode *inode, struct file *file)
 {
 	struct ion_client *client = file->private_data;
+
+	atomic_dec(&ION_Counter);
+	if (atomic_read(&ION_Counter) > 300)
+		printk("[ION_Debug]ion_release PID=%d process = %s ION_Counter:%d \n",current->pid ,current->comm,atomic_read(&ION_Counter));
 
 	pr_debug("%s: %d\n", __func__, __LINE__);
 	ion_client_destroy(client);
@@ -1492,6 +1497,10 @@ static int ion_open(struct inode *inode, struct file *file)
 	struct ion_device *dev = container_of(miscdev, struct ion_device, dev);
 	struct ion_client *client;
 	char debug_name[64];
+
+	atomic_inc(&ION_Counter);
+	if (atomic_read(&ION_Counter) > 300)
+		printk("[ION_Debug]ion_open PID=%d process = %s ION_Counter:%d\n",current->pid ,current->comm,atomic_read(&ION_Counter));
 
 	pr_debug("%s: %d\n", __func__, __LINE__);
 	snprintf(debug_name, 64, "%u", task_pid_nr(current->group_leader));

@@ -345,6 +345,7 @@ static struct pll_freq_tbl apcs_pll_freq[] = {
 	F_APCS_PLL(1190400000, 62, 0x0, 0x1, 0x0, 0x0, 0x0),
 	F_APCS_PLL(1209600000, 63, 0x0, 0x1, 0x0, 0x0, 0x0),
 	F_APCS_PLL(1248000000, 65, 0x0, 0x1, 0x0, 0x0, 0x0),
+	F_APCS_PLL(1363200000, 71, 0x0, 0x1, 0x0, 0x0, 0x0),
 	F_APCS_PLL(1401600000, 73, 0x0, 0x1, 0x0, 0x0, 0x0),
 	PLL_F_END
 };
@@ -907,6 +908,7 @@ static struct rcg_clk jpeg0_clk_src = {
 
 static struct clk_freq_tbl ftbl_gcc_camss_mclk0_1_clk[] = {
 	F(   9600000,	      xo,   2,	  0,	0),
+	F(  19200000,	      xo,   1,	  0,	0),
 	F(  23880000,      gpll0,   1,    2,   67),
 	F(  66670000,	   gpll0,  12,	  0,	0),
 	F_END
@@ -1063,6 +1065,7 @@ static struct rcg_clk byte0_clk_src = {
 
 static struct clk_freq_tbl ftbl_gcc_mdss_esc0_clk[] = {
 	F(  19200000,	      xo,   1,	  0,	0),
+    F(  9600000,	      xo,   2,	  0,	0),
 	F_END
 };
 
@@ -2594,20 +2597,16 @@ static struct clk_lookup msm_clocks_lookup[] = {
 	CLK_LIST(vfe0_clk_src),
 	CLK_LIST(mdp_clk_src),
 	CLK_LIST(gfx3d_clk_src),
+	/* +++ ASUS_BSP ShawnHuang remove spi */
 	CLK_LIST(blsp1_qup1_i2c_apps_clk_src),
-	CLK_LIST(blsp1_qup1_spi_apps_clk_src),
 	CLK_LIST(blsp1_qup2_i2c_apps_clk_src),
-	CLK_LIST(blsp1_qup2_spi_apps_clk_src),
 	CLK_LIST(blsp1_qup3_i2c_apps_clk_src),
-	CLK_LIST(blsp1_qup3_spi_apps_clk_src),
 	CLK_LIST(blsp1_qup4_i2c_apps_clk_src),
-	CLK_LIST(blsp1_qup4_spi_apps_clk_src),
 	CLK_LIST(blsp1_qup5_i2c_apps_clk_src),
-	CLK_LIST(blsp1_qup5_spi_apps_clk_src),
 	CLK_LIST(blsp1_qup6_i2c_apps_clk_src),
-	CLK_LIST(blsp1_qup6_spi_apps_clk_src),
 	CLK_LIST(blsp1_uart1_apps_clk_src),
 	CLK_LIST(blsp1_uart2_apps_clk_src),
+	/* --- ASUS_BSP ShawnHuang remove spi */
 	CLK_LIST(cci_clk_src),
 	CLK_LIST(camss_gp0_clk_src),
 	CLK_LIST(camss_gp1_clk_src),
@@ -2643,20 +2642,16 @@ static struct clk_lookup msm_clocks_lookup[] = {
 	CLK_LIST(gcc_vfe_tbu_clk),
 
 	/* Branches */
+	/* +++ ASUS_BSP ShawnHuang remove spi */
 	CLK_LIST(gcc_blsp1_qup1_i2c_apps_clk),
-	CLK_LIST(gcc_blsp1_qup1_spi_apps_clk),
 	CLK_LIST(gcc_blsp1_qup2_i2c_apps_clk),
-	CLK_LIST(gcc_blsp1_qup2_spi_apps_clk),
 	CLK_LIST(gcc_blsp1_qup3_i2c_apps_clk),
-	CLK_LIST(gcc_blsp1_qup3_spi_apps_clk),
 	CLK_LIST(gcc_blsp1_qup4_i2c_apps_clk),
-	CLK_LIST(gcc_blsp1_qup4_spi_apps_clk),
 	CLK_LIST(gcc_blsp1_qup5_i2c_apps_clk),
-	CLK_LIST(gcc_blsp1_qup5_spi_apps_clk),
 	CLK_LIST(gcc_blsp1_qup6_i2c_apps_clk),
-	CLK_LIST(gcc_blsp1_qup6_spi_apps_clk),
 	CLK_LIST(gcc_blsp1_uart1_apps_clk),
 	CLK_LIST(gcc_blsp1_uart2_apps_clk),
+	/* --- ASUS_BSP ShawnHuang remove spi */
 	CLK_LIST(gcc_camss_cci_ahb_clk),
 	CLK_LIST(gcc_camss_cci_clk),
 	CLK_LIST(gcc_camss_csi0_ahb_clk),

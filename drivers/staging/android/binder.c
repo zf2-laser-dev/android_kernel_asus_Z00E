@@ -2395,6 +2395,10 @@ retry:
 
 		trace_binder_transaction_received(t);
 		binder_stat_br(proc, thread, cmd);
+		if (t->from) {
+			current->binder_sender_pid = t->from->proc->pid;
+			current->binder_sender_tid = t->from->pid;
+		}
 		binder_debug(BINDER_DEBUG_TRANSACTION,
 			     "%d:%d %s %d %d:%d, cmd %d size %zd-%zd ptr %016llx-%016llx\n",
 			     proc->pid, thread->pid,
@@ -3517,13 +3521,24 @@ static int binder_transactions_show(struct seq_file *m, void *unused)
 
 static int binder_proc_show(struct seq_file *m, void *unused)
 {
+	struct binder_proc *itr;
 	struct binder_proc *proc = m->private;
 	int do_lock = !binder_debug_no_lock;
+	bool valid_proc = false;
 
 	if (do_lock)
 		binder_lock(__func__);
-	seq_puts(m, "binder proc state:\n");
-	print_binder_proc(m, proc, 1);
+
+	hlist_for_each_entry(itr, &binder_procs, proc_node) {
+		if (itr == proc) {
+			valid_proc = true;
+			break;
+		}
+	}
+	if (valid_proc) {
+		seq_puts(m, "binder proc state:\n");
+		print_binder_proc(m, proc, 1);
+	}
 	if (do_lock)
 		binder_unlock(__func__);
 	return 0;

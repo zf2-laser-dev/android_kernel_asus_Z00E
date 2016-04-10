@@ -46,6 +46,7 @@
 #include <trace/events/power.h>
 #define CREATE_TRACE_POINTS
 #include <trace/events/trace_msm_low_power.h>
+#include "../../arch/arm/mach-msm/clock.h"
 
 #define SCLK_HZ (32768)
 #define SCM_HANDOFF_LOCK_ID "S:7"
@@ -895,6 +896,7 @@ static int lpm_suspend_enter(suspend_state_t state)
 	}
 	cpu_prepare(cluster, idx, false);
 	cluster_prepare(cluster, cpumask, idx, false);
+	clock_debug_print_enabled();
 	msm_cpu_pm_enter_sleep(cluster->cpu->levels[idx].mode, false);
 	cluster_unprepare(cluster, cpumask, idx, false);
 	cpu_unprepare(cluster, idx, false);

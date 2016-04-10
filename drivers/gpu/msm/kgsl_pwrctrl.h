@@ -55,10 +55,17 @@
 struct platform_device;
 
 struct kgsl_clk_stats {
+	unsigned int old_clock_time[KGSL_MAX_PWRLEVELS];
+	unsigned int clock_time[KGSL_MAX_PWRLEVELS];
+	unsigned int on_time_old;
 	unsigned int busy;
 	unsigned int total;
 	unsigned int busy_old;
 	unsigned int total_old;
+	ktime_t start;
+	ktime_t stop;
+	unsigned int elapsed;
+	unsigned int elapsed_old;
 };
 
 struct kgsl_pwr_constraint {

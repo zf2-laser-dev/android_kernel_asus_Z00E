@@ -111,10 +111,10 @@ static struct pwm_chip *pwmchip_find_by_name(const char *name)
 static int pwm_device_request(struct pwm_device *pwm, const char *label)
 {
 	int err;
-
-	if (test_bit(PWMF_REQUESTED, &pwm->flags))
-		return -EBUSY;
-
+//ASUS BSP Austin_T +++
+//	if (test_bit(PWMF_REQUESTED, &pwm->flags)) 
+//		return -EBUSY;
+//ASUS BSP Austin_T --- 
 	if (!try_module_get(pwm->chip->ops->owner))
 		return -ENODEV;
 
@@ -182,7 +182,7 @@ static void of_pwmchip_add(struct pwm_chip *chip)
 {
 	if (!chip->dev || !chip->dev->of_node)
 		return;
-
+	
 	if (!chip->of_xlate) {
 		chip->of_xlate = of_pwm_simple_xlate;
 		chip->of_pwm_n_cells = 2;
@@ -367,8 +367,8 @@ struct pwm_device *pwm_request_from_chip(struct pwm_chip *chip,
 	struct pwm_device *pwm;
 	int err;
 
-	if (!chip || index >= chip->npwm)
-		return ERR_PTR(-EINVAL);
+	if (!chip || index >= chip->npwm){
+		return ERR_PTR(-EINVAL);}
 
 	mutex_lock(&pwm_lock);
 	pwm = &chip->pwms[index];
