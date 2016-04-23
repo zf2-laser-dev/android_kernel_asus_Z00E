@@ -195,9 +195,6 @@ static int IICErrorCountor = 0;
 /*#define FTXXXX_INT_PIN	62//EXYNOS4_GPJ0(3) //S5PV210_GPB(2)*/
 #define FTXXXX_INT_PIN_NAME	"ft5x46-int"
 
-extern bool proximity_check_status(void);
-extern int get_audiomode(void);
-
 /*
 *ftxxxx_i2c_Read-read data and write data by i2c
 *@client: handle of i2c
@@ -399,9 +396,6 @@ static void check_gesture(struct ftxxxx_ts_data *data, int gesture_id)
 	bool Ps_status = false;
 
 	printk("[Focal][Touch] %s :  gesture_id = 0x%x\n ", __func__, gesture_id);
-
-	if ((EnableProximityCheck && !ftxxxx_ts->cover_mode_eable) && !(get_audiomode() == 2))
-		Ps_status = proximity_check_status();
 
 	if (!Ps_status) {
 		switch (gesture_id) {
