@@ -44,6 +44,10 @@
 #define IS_RIGHT_MIXER_OV(flags, dst_x, left_lm_w)	\
 	((flags & MDSS_MDP_RIGHT_MIXER) || (dst_x >= left_lm_w))
 
+//ASUS_BSP: Louis +++
+extern int MdpBoostUp;
+//ASUS_BSP: Louis ---
+
 static int mdss_mdp_overlay_free_fb_pipe(struct msm_fb_data_type *mfd);
 static int mdss_mdp_overlay_fb_parse_dt(struct msm_fb_data_type *mfd);
 static int mdss_mdp_overlay_off(struct msm_fb_data_type *mfd);
@@ -1592,6 +1596,15 @@ unlock_exit:
 	if (ctl->shared_lock)
 		mutex_unlock(ctl->shared_lock);
 	ATRACE_END(__func__);
+	
+    //ASUS_BSP: Louis +++
+    if (MdpBoostUp > 0) {
+        MdpBoostUp--;
+        if (MdpBoostUp == 0) {
+            mdss_set_mdp_max_clk(0);
+        }
+    }
+    //ASUS_BSP: Louis ---
 
 	return ret;
 }

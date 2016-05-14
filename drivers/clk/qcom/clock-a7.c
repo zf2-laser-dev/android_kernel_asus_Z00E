@@ -409,6 +409,9 @@ static int clock_a7_probe(struct platform_device *pdev)
 	else
 		get_speed_bin(pdev, &speed_bin, &version);
 
+	if(g_soc_id == 2)
+		speed_bin = 3;
+
 	snprintf(prop_name, ARRAY_SIZE(prop_name),
 			"qcom,speed%d-bin-v%d", speed_bin, version);
 	rc = of_get_fmax_vdd_class(pdev, &a7ssmux.c, prop_name);

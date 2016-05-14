@@ -33,6 +33,10 @@
 #define MDP_INTR_MASK_INTF_VSYNC(intf_num) \
 	(1 << (2 * (intf_num - MDSS_MDP_INTF0) + MDSS_MDP_IRQ_INTF_VSYNC))
 
+//ASUS_BSP: Louis ++
+extern int MdpBoostUp;
+//ASUS_BSP: Louis --
+
 /* intf timing settings */
 struct intf_timing_params {
 	u32 width;
@@ -656,6 +660,11 @@ static void mdss_mdp_video_underrun_intr_done(void *arg)
 
 	if (ctl->opmode & MDSS_MDP_CTL_OP_PACK_3D_ENABLE)
 		schedule_work(&ctl->recover_work);
+
+    //ASUS_BSP: Louis +++, "boostup mdp in 10 frames update"
+    MdpBoostUp = 10;
+    mdss_set_mdp_max_clk(1);
+    //ASUS_BSP: Louis ---
 }
 
 static int mdss_mdp_video_vfp_fps_update(struct mdss_mdp_video_ctx *ctx,

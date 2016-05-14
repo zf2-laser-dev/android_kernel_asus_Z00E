@@ -9,6 +9,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+#define DEBUG 1
+
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/slab.h>
@@ -24,6 +26,11 @@
 #include <linux/kernel.h>
 #include <linux/input.h>
 #include <linux/firmware.h>
+#ifdef ASUS_ZC550KL_PROJECT
+#include <linux/debugfs.h>//mei_huang +++ for factory test headset insert check
+#endif
+#include <sound/pcm.h>
+#include <sound/pcm_params.h>
 #include <linux/completion.h>
 #include <glink_private.h>
 #include <sound/soc.h>
@@ -51,6 +58,15 @@
 #define MAX_IMPED 60000
 
 #define WCD_MBHC_BTN_PRESS_COMPL_TIMEOUT_MS  50
+
+#ifndef ASUS_ZC550KL_PROJECT
+/* ASUS_BSP Paul +++ */
+int g_jack_det_invert = 0;
+extern int g_DebugMode;
+/* ASUS_BSP Paul --- */
+#endif
+
+static u16 swap_res_check;
 
 static int det_extn_cable_en;
 module_param(det_extn_cable_en, int,
@@ -118,7 +134,7 @@ static void wcd_program_hs_vref(struct wcd_mbhc *mbhc)
 	reg_val = ((plug_type_cfg->v_hs_max - HS_VREF_MIN_VAL) / 100);
 
 	dev_dbg(codec->dev, "%s: reg_val  = %x\n", __func__, reg_val);
-	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_HS_VREF, reg_val);
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_HS_VREF, 0x02);
 }
 
 static void wcd_program_btn_threshold(const struct wcd_mbhc *mbhc, bool micbias)
@@ -519,7 +535,7 @@ static void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 {
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
 
-	pr_debug("%s: enter insertion %d hph_status %x\n",
+	printk("%s: enter insertion %d hph_status %x\n",
 		 __func__, insertion, mbhc->hph_status);
 	if (!insertion) {
 		/* Report removal */
@@ -553,7 +569,7 @@ static void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 
 		mbhc->hph_type = WCD_MBHC_HPH_NONE;
 		mbhc->zl = mbhc->zr = 0;
-		pr_debug("%s: Reporting removal %d(%x)\n", __func__,
+		printk("%s: Reporting removal %d(%x)\n", __func__,
 			 jack_type, mbhc->hph_status);
 		wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
 				mbhc->hph_status, WCD_MBHC_JACK_MASK);
@@ -661,7 +677,7 @@ static void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 				    WCD_MBHC_JACK_MASK);
 		wcd_mbhc_clr_and_turnon_hph_padac(mbhc);
 	}
-	pr_debug("%s: leave hph_status %x\n", __func__, mbhc->hph_status);
+	printk("%s: leave hph_status %x\n", __func__, mbhc->hph_status);
 }
 
 static void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
@@ -1113,6 +1129,13 @@ correct_plug_type:
 							__func__);
 					goto report;
 				}
+				if (mbhc->current_plug !=
+						MBHC_PLUG_TYPE_HEADSET &&
+						swap_res_check == 0xc) {
+					pr_debug("%s: cable is headset\n",
+							__func__);
+					goto report;
+				}
 			}
 			wrk_complete = false;
 		}
@@ -1138,6 +1161,21 @@ correct_plug_type:
 					__func__, plug_type);
 			plug_type = MBHC_PLUG_TYPE_HEADSET;
 			goto report;
+		}
+		else {
+			/*ASUS_BSP : detect impedance first*/
+			if (mbhc->impedance_detect &&
+				mbhc->mbhc_cb->compute_impedance){
+				mbhc->mbhc_cb->compute_impedance(mbhc,
+						&mbhc->zl, &mbhc->zr);
+			}
+			/*ASUS_BSP : check impedance is higher than 500*/
+			if ((mbhc->zl >= 500) && ( mbhc->zr >= 500)) {
+				pr_debug("%s: plug in might be illigal headset \n",
+					__func__);
+				plug_type = MBHC_PLUG_TYPE_INVALID;
+				goto exit;
+			}
 		}
 	}
 
@@ -1255,6 +1293,13 @@ static void wcd_mbhc_swch_irq_handler(struct wcd_mbhc *mbhc)
 			mbhc->current_plug, detection_type);
 	wcd_cancel_hs_detect_plug(mbhc, &mbhc->correct_plug_swch);
 
+#ifndef ASUS_ZC550KL_PROJECT
+	/* ASUS_BSP Paul +++ */
+	if (g_DebugMode)
+		goto exit;
+	/* ASUS_BSP Paul --- */
+#endif
+
 	if (mbhc->mbhc_cb->micbias_enable_status)
 		micbias1 = mbhc->mbhc_cb->micbias_enable_status(mbhc,
 						MIC_BIAS_1);
@@ -1345,6 +1390,9 @@ static void wcd_mbhc_swch_irq_handler(struct wcd_mbhc *mbhc)
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_BTN_ISRC_CTL, 0);
 	}
 
+#ifndef ASUS_ZC550KL_PROJECT
+exit: /* ASUS_BSP Paul +++ */
+#endif
 	mbhc->in_swch_irq_handler = false;
 	WCD_MBHC_RSC_UNLOCK(mbhc);
 	pr_debug("%s: leave\n", __func__);
@@ -1367,6 +1415,53 @@ static irqreturn_t wcd_mbhc_mech_plug_detect_irq(int irq, void *data)
 	pr_debug("%s: leave %d\n", __func__, r);
 	return r;
 }
+
+#ifndef ASUS_ZC550KL_PROJECT
+/* ASUS_BSP Paul +++ */
+void wcd_mbhc_plug_detect_for_debug_mode(struct wcd_mbhc *mbhc, int debug_mode)
+{
+	if (debug_mode) {
+		if (mbhc->current_plug != MBHC_PLUG_TYPE_NONE) {
+			printk("%s: current_plug != MBHC_PLUG_TYPE_NONE, force removal\n", __func__);
+			mbhc->mbhc_cb->lock_sleep(mbhc, true);
+			wcd_mbhc_swch_irq_handler(mbhc);
+			mbhc->mbhc_cb->lock_sleep(mbhc, false);
+			g_jack_det_invert = 1;
+		}
+		mbhc->mbhc_cb->irq_control(mbhc->codec, mbhc->intr_ids->mbhc_btn_press_intr, false);
+		mbhc->mbhc_cb->irq_control(mbhc->codec, mbhc->intr_ids->mbhc_btn_release_intr, false);
+		mbhc->mbhc_cb->irq_control(mbhc->codec, mbhc->intr_ids->hph_left_ocp, false);
+		mbhc->mbhc_cb->irq_control(mbhc->codec, mbhc->intr_ids->hph_right_ocp, false);
+	} else {
+		bool detection_type;
+		mbhc->mbhc_cb->irq_control(mbhc->codec, mbhc->intr_ids->mbhc_btn_press_intr, true);
+		mbhc->mbhc_cb->irq_control(mbhc->codec, mbhc->intr_ids->mbhc_btn_release_intr, true);
+		mbhc->mbhc_cb->irq_control(mbhc->codec, mbhc->intr_ids->hph_left_ocp, true);
+		mbhc->mbhc_cb->irq_control(mbhc->codec, mbhc->intr_ids->hph_right_ocp, true);
+		WCD_MBHC_REG_READ(WCD_MBHC_MECH_DETECTION_TYPE, detection_type);
+		if (!g_jack_det_invert && !detection_type) {
+			printk("%s: g_jack_det_invert == 0, detect plug type\n", __func__);
+			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_MECH_DETECTION_TYPE,
+					!detection_type);
+			mbhc->mbhc_cb->lock_sleep(mbhc, true);
+			wcd_mbhc_swch_irq_handler(mbhc);
+			mbhc->mbhc_cb->lock_sleep(mbhc, false);
+		} else if (g_jack_det_invert && !detection_type) {
+			printk("%s: current_plug == MBHC_PLUG_TYPE_NONE\n", __func__);
+			WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_MECH_DETECTION_TYPE,
+					!detection_type);
+		} else if (g_jack_det_invert && detection_type) {
+			printk("%s: g_jack_det_invert == 1, detect plug type\n", __func__);
+			mbhc->mbhc_cb->lock_sleep(mbhc, true);
+			wcd_mbhc_swch_irq_handler(mbhc);
+			mbhc->mbhc_cb->lock_sleep(mbhc, false);
+		}
+		g_jack_det_invert = 0;
+	}
+}
+EXPORT_SYMBOL(wcd_mbhc_plug_detect_for_debug_mode);
+/* ASUS_BSP Paul --- */
+#endif
 
 static int wcd_mbhc_get_button_mask(struct wcd_mbhc *mbhc)
 {
@@ -1683,6 +1778,7 @@ static irqreturn_t wcd_mbhc_btn_press_handler(int irq, void *data)
 				__func__);
 		goto done;
 	}
+
 	mask = wcd_mbhc_get_button_mask(mbhc);
 	mbhc->buttons_pressed |= mask;
 	mbhc->mbhc_cb->lock_sleep(mbhc, true);
@@ -1705,7 +1801,12 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 	pr_debug("%s: enter\n", __func__);
 	WCD_MBHC_RSC_LOCK(mbhc);
 	if (wcd_swch_level_remove(mbhc)) {
-		pr_debug("%s: Switch level is low ", __func__);
+		pr_debug("%s: Switch level is low\n", __func__);
+		goto exit;
+	}
+
+	if (!mbhc->is_btn_press) {
+		pr_debug("%s: is_btn_press = false, goto exit\n", __func__);
 		goto exit;
 	}
 
@@ -2065,6 +2166,61 @@ void wcd_mbhc_stop(struct wcd_mbhc *mbhc)
 }
 EXPORT_SYMBOL(wcd_mbhc_stop);
 
+#ifdef ASUS_ZC550KL_PROJECT
+//mei_huang +++ for factory test headset insert check
+ssize_t wcd_mbhc_debug_read(struct file *file, char __user *buff,
+			      size_t len, loff_t *off)
+{
+	struct wcd_mbhc *mbhc = file->private_data;
+	char messages[256];
+	bool val;
+
+	if (*off)
+		return 0;
+
+	memset(messages, 0, sizeof(messages));
+	if (len > 256)
+		len = 256;
+
+	val = !wcd_swch_level_remove(mbhc);
+
+	if (val)
+		sprintf(messages, "1\n");
+	else
+		sprintf(messages, "0\n");
+
+	if (copy_to_user(buff, messages, len))
+		return -EFAULT;
+
+	(*off)++;
+	return len;
+}
+
+static int wcd_debug_open(struct inode *inode, struct file *file)
+{
+	file->private_data = inode->i_private;
+	return 0;
+}
+
+static const struct file_operations mbhc_debug_ops = {
+	.open = wcd_debug_open,
+	.read = wcd_mbhc_debug_read,
+};
+
+static void wcd9xxx_init_debugfs(struct wcd_mbhc *mbhc)
+{
+	mbhc->debugfs_mbhc =
+	    debugfs_create_file("wcd9xxx_mbhc", S_IFREG | S_IRUGO,
+				NULL, mbhc, &mbhc_debug_ops);
+}
+
+static void wcd9xxx_cleanup_debugfs(struct wcd_mbhc *mbhc)
+{
+	debugfs_remove(mbhc->debugfs_mbhc);
+}
+//mei_huang ---
+#endif
+
 /*
  * wcd_mbhc_init : initialize MBHC internal structures.
  *
@@ -2154,6 +2310,15 @@ int wcd_mbhc_init(struct wcd_mbhc *mbhc, struct snd_soc_codec *codec,
 		ret = snd_jack_set_key(mbhc->button_jack.jack,
 				       SND_JACK_BTN_0,
 				       KEY_MEDIA);
+		ret = snd_jack_set_key(mbhc->button_jack.jack,
+				       SND_JACK_BTN_1,
+				       KEY_VOICE_ASSIST);
+		ret = snd_jack_set_key(mbhc->button_jack.jack,
+				       SND_JACK_BTN_2,
+				       KEY_VOLUMEUP);
+		ret = snd_jack_set_key(mbhc->button_jack.jack,
+				       SND_JACK_BTN_3,
+				       KEY_VOLUMEDOWN);
 		if (ret) {
 			pr_err("%s: Failed to set code for btn-0\n",
 				__func__);
@@ -2182,6 +2347,10 @@ int wcd_mbhc_init(struct wcd_mbhc *mbhc, struct snd_soc_codec *codec,
 		}
 	}
 
+	#ifdef ASUS_ZC550KL_PROJECT
+	wcd9xxx_init_debugfs(mbhc);//mei_huang +++ for factory test headset insert check
+	#endif
+	
 	init_waitqueue_head(&mbhc->wait_btn_press);
 	mutex_init(&mbhc->codec_resource_lock);
 
@@ -2300,6 +2469,9 @@ void wcd_mbhc_deinit(struct wcd_mbhc *mbhc)
 	if (mbhc->mbhc_cb && mbhc->mbhc_cb->register_notifier)
 		mbhc->mbhc_cb->register_notifier(codec, &mbhc->nblock, false);
 	mutex_destroy(&mbhc->codec_resource_lock);
+	#ifdef ASUS_ZC550KL_PROJECT
+	wcd9xxx_cleanup_debugfs(mbhc);//mei_huang --- for factory test headset insert check
+	#endif
 }
 EXPORT_SYMBOL(wcd_mbhc_deinit);
 

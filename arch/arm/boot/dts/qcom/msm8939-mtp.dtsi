@@ -52,7 +52,8 @@
 	};
 
 	i2c@78ba000 { /* BLSP1 QUP6 */
-		nfc-nci@e {
+		/* ASUS_BSP: wendy_qin  +++*/
+		/*nfc-nci@e {
 			compatible = "qcom,nfc-nci";
 			reg = <0x0e>;
 			qcom,irq-gpio = <&msm_gpio 21 0x00>;
@@ -67,7 +68,8 @@
 			qcom,clk-gpio = <&pm8916_gpios 2 0>;
 			clocks = <&clock_rpm clk_bb_clk2_pin>;
 			clock-names = "ref_clk";
-		};
+		};	*/
+		/* ASUS_BSP: wendy_qin  ---*/
 
 		nq@2b {
 			compatible = "qcom,nq-nci";
@@ -123,7 +125,7 @@
 	};
 
 	i2c@78b6000 { /* BLSP1 QUP2 */
-		mpu6050@68 { /* Gyroscope and accelerometer sensor combo */
+		mpu6050@68 { 
 			compatible = "invn,mpu6050";
 			reg = <0x68>;
 			pinctrl-names = "mpu_default","mpu_sleep";
@@ -138,7 +140,7 @@
 			invn,place = "Portrait Down Back Side";
 		};
 
-		avago@39 { /* Ambient light and proximity sensor */
+		avago@39 { 
 			compatible = "avago,apds9900";
 			reg = <0x39>;
 			pinctrl-names = "default","sleep";
@@ -158,7 +160,6 @@
 			avago,als-D = <129>;
 			avago,ga-value = <560>;
 		};
-
 		akm@c {
 			compatible = "ak,ak8963";
 			reg = <0x0c>;
@@ -173,6 +174,24 @@
 			ak,auto-report;
 		};
 
+		    aw2013@45 {
+			compatible = "awinic,aw2013";
+			reg = <0x45>;
+			asus,leds@0 {
+				status = "okay";
+				idx = <0>;
+				linux,name = "green";
+				//linux,default-trigger = "battery-full";
+				asus,use-blink;
+			};
+			asus,leds@1 {
+				status = "okay";
+				idx = <1>;
+				linux,name = "red";
+				//linux,default-trigger = "charging";
+				asus,use-blink;
+				};
+		};
 	};
 };
 

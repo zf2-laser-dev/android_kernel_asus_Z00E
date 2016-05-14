@@ -1313,7 +1313,7 @@ static int msm_isp_axi_wait_for_cfg_done(struct vfe_device *vfe_dev,
 		msecs_to_jiffies(VFE_MAX_CFG_TIMEOUT));
 	if (rc == 0) {
 		pr_err("%s: wait timeout\n", __func__);
-		rc = -1;
+		rc = 0;
 	} else {
 		rc = 0;
 	}

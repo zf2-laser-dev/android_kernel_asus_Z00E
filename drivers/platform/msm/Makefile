@@ -15,6 +15,7 @@ obj-$(CONFIG_I2C_MSM_PROF_DBG) += i2c-msm-prof-dbg.o
 obj-$(CONFIG_IPA) += ipa/
 obj-$(CONFIG_SPS) += sps/
 obj-$(CONFIG_QPNP_POWER_ON) += qpnp-power-on.o
+obj-$(CONFIG_QPNP_POWER_ON_ZC550KL) += qpnp-power-on_ZC550KL.o
 obj-$(CONFIG_QPNP_VIBRATOR) += qpnp-vibrator.o
 obj-$(CONFIG_QPNP_CLKDIV) += qpnp-clkdiv.o
 obj-$(CONFIG_QPNP_COINCELL) += qpnp-coincell.o

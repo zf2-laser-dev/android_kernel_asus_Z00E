@@ -54,6 +54,14 @@ config QPNP_POWER_ON
 	  PNP PMIC. It currently supports reporting the change in status of
 	  the KPDPWR_N line (connected to the power-key).
 
+config QPNP_POWER_ON_ZC550KL
+	tristate "QPNP PMIC POWER-ON Driver"
+	depends on OF_SPMI && SPMI && MSM_QPNP_INT && INPUT
+	help
+	  This driver supports the power-on functionality on Qualcomm
+	  PNP PMIC. It currently supports reporting the change in status of
+	  the KPDPWR_N line (connected to the power-key).
+
 config QPNP_CLKDIV
 	tristate "QPNP PMIC clkdiv driver"
 	depends on OF_SPMI && SPMI

@@ -2395,6 +2395,10 @@ retry:
 
 		trace_binder_transaction_received(t);
 		binder_stat_br(proc, thread, cmd);
+		if (t->from) {
+			current->binder_sender_pid = t->from->proc->pid;
+			current->binder_sender_tid = t->from->pid;
+		}
 		binder_debug(BINDER_DEBUG_TRANSACTION,
 			     "%d:%d %s %d %d:%d, cmd %d size %zd-%zd ptr %016llx-%016llx\n",
 			     proc->pid, thread->pid,

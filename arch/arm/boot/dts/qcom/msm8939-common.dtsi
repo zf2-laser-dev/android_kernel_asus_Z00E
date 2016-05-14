@@ -94,6 +94,13 @@
 			reg = <0x0 0x83000000 0x0 0x2000000>;
 			label = "cont_splash_mem";
 		};
+		asus_debug_mem: asus_debug_region@0 {
+			linux,reserve-contiguous-region;
+			linux,reserve-region;
+			linux,remove-completely;
+			reg = <0x0 0x8fe00000 0x0 0x00200000>;
+			label = "asus_debug_mem";
+		};
 	};
 
 	soc: soc { };
@@ -791,10 +798,13 @@
 		qcom,vdd-voltage-level = <1 5 7>;
 
 		qcom,hsusb-otg-phy-init-seq =
-			<0x44 0x80 0x6B 0x81 0x24 0x82 0x13 0x83 0xffffffff>;
+			<0x74 0x80 0x6e 0x81 0x34 0x82 0x13 0x83 0xffffffff>;
 		qcom,hsusb-otg-phy-type = <2>;
 		qcom,hsusb-otg-mode = <1>;
 		qcom,hsusb-otg-otg-control = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usbid_default>;
+		qcom,usbid-gpio = <&msm_gpio 110 0>;
 		qcom,hsusb-otg-disable-reset;
 		qcom,dp-manual-pullup;
 		qcom,hsusb-otg-mpm-dpsehv-int = <49>;
@@ -950,7 +960,7 @@
 		reg = <0x78b8000 0x1000>;
 		interrupt-names = "qup_irq";
 		interrupts = <0 98 0>;
-		qcom,clk-freq-out = <100000>;
+		qcom,clk-freq-out = <400000>; /* BSP --- Guochang_qiu Change freq to 400KHz */
 		qcom,clk-freq-in  = <19200000>;
 		clock-names = "iface_clk", "core_clk";
 		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
@@ -975,7 +985,7 @@
 		reg = <0x78b9000 0x600>;
 		interrupt-names = "qup_irq";
 		interrupts = <0 99 0>;
-		qcom,clk-freq-out = <100000>;
+		qcom,clk-freq-out = <400000>; /* BSP --- Guochang_qiu Change freq to 400KHz */
 		qcom,clk-freq-in  = <19200000>;
 		clock-names = "iface_clk", "core_clk";
 		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
@@ -1728,7 +1738,7 @@
 };
 
 #include "msm-pm8916-rpm-regulator.dtsi"
-#include "msm-pm8916.dtsi"
+#include "zc550kl_8939_msm-pm8916.dtsi"
 #include "msm8939-regulator.dtsi"
 
 &pm8916_vadc {

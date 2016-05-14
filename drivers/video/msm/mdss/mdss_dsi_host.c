@@ -1590,6 +1590,7 @@ end:
 }
 
 #define DMA_TX_TIMEOUT 200
+//#define DSI_CMD_DEBUG	//ASUS_BSP: Louis +++
 
 static int mdss_dsi_cmd_dma_tx(struct mdss_dsi_ctrl_pdata *ctrl,
 					struct dsi_buf *tp)
@@ -1600,7 +1601,22 @@ static int mdss_dsi_cmd_dma_tx(struct mdss_dsi_ctrl_pdata *ctrl,
 	struct mdss_dsi_ctrl_pdata *mctrl = NULL;
 	int ignored = 0;	/* overflow ignored */
 
+	//ASUS_BSP: Louis ++
+	#ifdef DSI_CMD_DEBUG
+	int i;	
+	#endif
+	//ASUS_BSP: Louis --
+
 	bp = tp->data;
+	
+	//ASUS_BSP: Louis ++
+	#ifdef DSI_CMD_DEBUG
+	printk("%s: ", __func__);
+	for (i = 0; i < tp->len; i++)
+        printk("0x%x ", *bp++);
+	printk("\n");
+	#endif
+	//ASUS_BSP: Louis --
 
 	len = ALIGN(tp->len, 4);
 	ctrl->dma_size = ALIGN(tp->len, SZ_4K);

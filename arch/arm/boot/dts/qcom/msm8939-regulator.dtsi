@@ -31,6 +31,20 @@
 		onnn,restore-reg;
 	};
 
+	sy8827: sy8827-regulator@70 {
+		compatible = "silergy,sy8827-regulator";
+		reg = <0x70>;
+		fairchild,backup-vsel = <1>;
+		regulator-min-microvolt = <1050000>;
+		regulator-max-microvolt = <1350000>;
+		regulator-ramp-delay = <1250>;
+		pintrl-names = "default";
+		pinctrl-0 = <&ext_buck_vsel_default>;
+		fairchild,vsel-gpio = <&msm_gpio 111 1>;
+		fairchild,restore-reg;
+		fairchild,disable-suspend;
+	};
+
 	fan53555: fan53555-regulator@60 {
 		compatible = "fairchild,fan53555-regulator";
 		reg = <0x60>;
@@ -49,14 +63,14 @@
 /* Memory accelerator and CPR controlled regulators */
 
 &soc {
-	spk_vreg: regulator_spk {
+/*	spk_vreg: regulator_spk {
 		compatible = "regulator-fixed";
 		regulator-name = "spk_vreg";
 		startup-delay-us = <0>;
 		enable-active-high;
 		gpio = <&msm_gpio 121 0>;
 	};
-
+*/
 	mem_acc_vreg_corner: regulator@1942130 {
 		compatible = "qcom,mem-acc-regulator";
 		reg = <0x1942130 0x4>, <0x58000 0x1000>, <0x1942124 0x4>;
@@ -86,7 +100,7 @@
 		qcom,cpr-fuse-corners = <3>;
 		qcom,cpr-voltage-ceiling = <1050000 1150000 1350000>;
 		qcom,cpr-voltage-floor = <1050000 1050000 1137500>;
-		vdd-apc-supply = <&ncp6335d>;
+		vdd-apc-supply = <&sy8827>;
 
 		qcom,vdd-mx-corner-map = <4 5 7>;
 		qcom,vdd-mx-vmin-method = <4>;
@@ -484,6 +498,7 @@
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <1800000>;
 			qcom,init-voltage = <1800000>;
+			regulator-always-on;	/* ASUS BSP Alian_Shen Always Enable for sensor */
 			status = "okay";
 		};
 	};
@@ -603,6 +618,7 @@
 			regulator-min-microvolt = <2850000>;
 			regulator-max-microvolt = <2850000>;
 			qcom,init-voltage = <2850000>;
+			regulator-always-on;	/* ASUS BSP Alian_Shen Always Enable for sensor */
 			status = "okay";
 		};
 	};
